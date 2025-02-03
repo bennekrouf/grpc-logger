@@ -3,7 +3,13 @@
 # level: info
 
 # For file output
-output: file
+# output: file
+# level: info
+# file_path: "logs"
+# file_name: "app.log"
+
+output: grpc
 level: info
-file_path: "logs"
-file_name: "app.log"
+grpc:
+  address: "127.0.0.1"
+  port: 50051

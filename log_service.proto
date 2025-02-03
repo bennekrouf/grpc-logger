@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package logging;
+
+service LogService {
+  // Change to server streaming
+  rpc SubscribeToLogs (SubscribeRequest) returns (stream LogMessage) {}
+}
+
+message SubscribeRequest {
+  // Add any subscription parameters you might want
+  string client_id = 1;
+}
+
+message LogMessage {
+  string timestamp = 1;
+  string level = 2;
+  string message = 3;
+  string target = 4;
+  string thread_id = 5;
+  string file = 6;
+  string line = 7;
+}
