@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.39"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_yaml = "0.9.34"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
