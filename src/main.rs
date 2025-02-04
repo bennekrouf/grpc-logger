@@ -1,6 +1,7 @@
 mod server_build;
 use server_build::logging::log_service_server::LogServiceServer;
 
+use crate::server_build::logging::LogMessage;
 use serde::Deserialize;
 use std::fs;
 use std::io::{self, Write};
@@ -18,7 +19,6 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::Registry;
-// use logging::LogMessage;
 use server_build::LoggingService;
 
 // Configuration structs
@@ -198,7 +198,7 @@ fn setup_logging(
     };
 
     //let _filter = EnvFilter::from_default_env().add_directive(level.into());
-    let filter = EnvFilter::new("")
+    EnvFilter::new("")
         .add_directive("logger_to_client=info".parse()?) // Your app logs
         .add_directive("warn".parse()?);
 
@@ -258,7 +258,6 @@ fn setup_logging(
     }
 }
 
-use crate::server_build::logging::LogMessage;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = load_config("config.yaml")?;
@@ -269,7 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = setup_logging(&config, Some(service_clone.clone()));
 
     // Spawn a task that generates logs every 10 seconds
-    let log_task = tokio::spawn(async move {
+    tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
         loop {
             interval.tick().await;
