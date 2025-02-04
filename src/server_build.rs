@@ -5,6 +5,7 @@ use futures::StreamExt;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use std::pin::Pin;
 use futures::Stream;
+use tracing::warn;
 
 pub mod logging {
     tonic::include_proto!("logging");
@@ -25,8 +26,11 @@ impl LoggingService {
     }
 
     pub fn broadcast_log(&self, log: LogMessage) {
-        if let Err(e) = self.sender.send(log) {
-            eprintln!("Failed to broadcast log: {}", e);
+        // Only try to send if there are active receivers
+        if self.sender.receiver_count() > 0 {
+            if let Err(e) = self.sender.send(log) {
+                warn!("Failed to broadcast log: {}", e);
+            }
         }
     }
 }
