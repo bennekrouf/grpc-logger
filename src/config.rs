@@ -81,12 +81,12 @@ pub fn setup_logging(
                 .with_writer(non_blocking)
                 .with_timer(CustomTimer)
                 .with_target(false)
-                .with_thread_ids(true)
-                .with_file(true)
-                .with_line_number(true)
+                .with_thread_ids(false)
+                .with_file(false)
+                .with_line_number(false)
                 .with_ansi(false)
                 .with_level(true)
-                .with_thread_names(true)
+                .with_thread_names(false)
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
             tracing::subscriber::set_global_default(
@@ -103,12 +103,12 @@ pub fn setup_logging(
                 .with_writer(io::stdout)
                 .with_timer(CustomTimer)
                 .with_target(false)
-                .with_thread_ids(true)
-                .with_file(true)
-                .with_line_number(true)
+                .with_thread_ids(false)
+                .with_file(false)
+                .with_line_number(false)
                 .with_ansi(false)
                 .with_level(true)
-                .with_thread_names(true)
+                .with_thread_names(false)
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
             tracing::subscriber::set_global_default(
