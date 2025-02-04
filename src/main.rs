@@ -8,7 +8,7 @@ use serde::Deserialize;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use server_build::LoggingService;
-
+use tracing::info;
 // Configuration structs
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -32,7 +32,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
         loop {
             interval.tick().await;
-            use tracing::info;
             info!("Test log message from server");
         }
     });
