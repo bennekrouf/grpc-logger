@@ -18,7 +18,7 @@ use crate::grpc::GrpcConfig;
 // Configuration structs
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum LogOutput {
+pub enum LogOutput {
     Console,
     File,
     Grpc,
@@ -26,10 +26,10 @@ enum LogOutput {
 
 #[derive(Debug, Deserialize)]
 pub struct LogConfig {
-    output: LogOutput,
-    level: String,
-    file_path: Option<String>,
-    file_name: Option<String>,
+    pub output: LogOutput,
+    pub level: String,
+    pub file_path: Option<String>,
+    pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
 }
 

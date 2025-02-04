@@ -1,14 +1,15 @@
 mod server_build;
 mod grpc;
-mod setup_logging;
+mod config;
 
 use server_build::logging::log_service_server::LogServiceServer;
-use crate::setup_logging::{setup_logging, load_config};
+use crate::config::{setup_logging, load_config};
 use serde::Deserialize;
 use tonic::transport::Server;
 use tonic_web::GrpcWebLayer;
 use server_build::LoggingService;
 use tracing::info;
+
 // Configuration structs
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "lowercase")]
