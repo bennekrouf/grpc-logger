@@ -28,6 +28,6 @@ path = "src/lib.rs"
 
 # Binary configuration
 [[bin]]
-name = "logger-server"
+name = "grpc_server"
 path = "src/main.rs"
 
