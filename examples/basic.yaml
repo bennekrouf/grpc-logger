@@ -1,4 +1,4 @@
-output: Grpc  # or File or Console
+output: grpc  # or File or Console
 level: debug
 grpc:
   address: "0.0.0.0"

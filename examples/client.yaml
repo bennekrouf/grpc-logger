@@ -1,4 +1,4 @@
-output: Console
+output: console
 level: debug
 grpc:
   address: "0.0.0.0"

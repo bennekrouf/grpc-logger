@@ -68,7 +68,7 @@ impl LoggingService {
         info!("Log level set to: {}", config.level);
 
         // Start test log generation
-        let sender = self.sender.clone();
+        let _ = self.sender.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
             loop {
