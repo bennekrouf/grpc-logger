@@ -1,8 +1,8 @@
 use tracing::field::{Field, Visit};
 use tracing_subscriber::Layer;
 
-use crate::server_build::LoggingService;
 use crate::server_build::logging::LogMessage;
+use crate::server_build::LoggingService;
 
 pub struct GrpcLayer {
     pub service: LoggingService,

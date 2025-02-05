@@ -1,6 +1,6 @@
-mod server_build;
-mod grpc;
 mod config;
+mod grpc;
+mod server_build;
 use grpc_logger::init;
 
 #[tokio::main]
@@ -14,5 +14,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
-

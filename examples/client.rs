@@ -1,8 +1,8 @@
-use tonic::Request;
+use grpc_logger::{config::load_config, LogConfig};
 use std::time::Duration;
 use tokio::time::sleep;
-use grpc_logger::{config::load_config, LogConfig};
-use tracing::{info, error, debug};
+use tonic::Request;
+use tracing::{debug, error, info};
 
 pub mod logging {
     tonic::include_proto!("logging");
@@ -10,11 +10,14 @@ pub mod logging {
 use logging::log_service_client::LogServiceClient;
 use logging::SubscribeRequest;
 
-async fn connect_with_retry(config: &LogConfig) -> Result<LogServiceClient<tonic::transport::Channel>, tonic::transport::Error> {
+async fn connect_with_retry(
+    config: &LogConfig,
+) -> Result<LogServiceClient<tonic::transport::Channel>, tonic::transport::Error> {
     let mut retry_count = 0;
     let retry_config = &config.client_retry;
     let base_delay = Duration::from_secs(retry_config.base_delay_secs);
-    let server_addr = format!("http://{}:{}", 
+    let server_addr = format!(
+        "http://{}:{}",
         config.grpc.as_ref().unwrap().address,
         config.grpc.as_ref().unwrap().port
     );
@@ -29,12 +32,18 @@ async fn connect_with_retry(config: &LogConfig) -> Result<LogServiceClient<tonic
             Err(e) => {
                 retry_count += 1;
                 if retry_count > retry_config.max_retries {
-                    error!("Failed to connect after {} retries. Exiting.", retry_config.max_retries);
+                    error!(
+                        "Failed to connect after {} retries. Exiting.",
+                        retry_config.max_retries
+                    );
                     return Err(e);
                 }
                 let delay = base_delay.mul_f32(1.5f32.powi(retry_count as i32));
-                error!("Failed to connect to server: {}. Retrying in {} seconds...", 
-                    e, delay.as_secs());
+                error!(
+                    "Failed to connect to server: {}. Retrying in {} seconds...",
+                    e,
+                    delay.as_secs()
+                );
                 sleep(delay).await;
             }
         }
@@ -45,16 +54,19 @@ async fn connect_with_retry(config: &LogConfig) -> Result<LogServiceClient<tonic
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = load_config("client.yaml")?;
-    
+
     info!("Starting log client...");
     loop {
         let mut client = connect_with_retry(&config).await?;
         let request = SubscribeRequest {
             client_id: "test-client-1".to_string(),
         };
-        
+
         debug!("Subscribing to log stream...");
-        match client.subscribe_to_logs(Request::new(request.clone())).await {
+        match client
+            .subscribe_to_logs(Request::new(request.clone()))
+            .await
+        {
             Ok(response) => {
                 info!("Connected to log server. Waiting for logs...");
                 let mut stream = response.into_inner();
@@ -66,9 +78,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 debug!("Stream ended. Attempting to reconnect...");
             }
             Err(e) => {
-                error!("Lost connection to server: {}. Attempting to reconnect...", e);
+                error!(
+                    "Lost connection to server: {}. Attempting to reconnect...",
+                    e
+                );
             }
         }
-        sleep(Duration::from_secs(config.client_retry.reconnect_delay_secs)).await;
+        sleep(Duration::from_secs(
+            config.client_retry.reconnect_delay_secs,
+        ))
+        .await;
     }
 }

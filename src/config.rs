@@ -1,4 +1,6 @@
+use crate::grpc::GrpcConfig;
 use crate::grpc::GrpcLayer;
+use crate::server_build::LoggingService;
 use serde::Deserialize;
 use std::fs;
 use std::io;
@@ -12,8 +14,6 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::Registry;
-use crate::server_build::LoggingService;
-use crate::grpc::GrpcConfig;
 
 // Configuration structs
 #[derive(Debug, Deserialize)]
@@ -32,16 +32,16 @@ pub struct LogConfig {
     pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
     #[serde(default)]
-    pub server_retry: ServerRetryConfig,  // For server binding retries
+    pub server_retry: ServerRetryConfig, // For server binding retries
     #[serde(default)]
-    pub client_retry: ClientRetryConfig,  // For client connection retries
+    pub client_retry: ClientRetryConfig, // For client connection retries
 }
 
 #[derive(Debug, Deserialize, Default)]
 #[serde(default)]
 pub struct ServerRetryConfig {
-    pub max_retries: u32,          // Fewer retries, maybe 5-10
-    pub base_delay_secs: u64,      // Shorter delays
+    pub max_retries: u32,     // Fewer retries, maybe 5-10
+    pub base_delay_secs: u64, // Shorter delays
 }
 
 #[derive(Debug, Deserialize, Default)]

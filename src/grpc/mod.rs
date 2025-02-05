@@ -1,7 +1,7 @@
 use serde::Deserialize;
 
-mod writer;
 mod layer;
+mod writer;
 
 pub use layer::GrpcLayer;
 

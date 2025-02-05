@@ -1,4 +1,4 @@
-use grpc_logger::{LoggingService, config::load_config};
+use grpc_logger::{config::load_config, LoggingService};
 use tracing::info;
 
 #[tokio::main]
