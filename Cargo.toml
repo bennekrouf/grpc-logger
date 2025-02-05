@@ -1,6 +1,6 @@
 [package]
 name = "grpc_logger"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "A gRPC-based logging system with multiple output modes and retry capabilities"
 license = "MIT"

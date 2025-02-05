@@ -44,16 +44,13 @@ grpc-logger = "0.1.0"
 
 ## Usage
 
-### Quick test
+### Quick test of the repository without any integration
 
-Open a terminal and run:
-
+Clone the repository https://github.com/bennekrouf/grpc-logger. Then open a terminal and run:
 ```
 cargo run
 ```
-
 Open another terminal and run: 
-
 ```
 cargo run --example client
 ```
@@ -64,6 +61,8 @@ __Important__: If the server is running on port 0.0.0.0, the client should try c
 
 
 ### Server Integration
+
+Adding the crate to a rust program will allow to do info!("blabla") log broadcasted through a grpc server that is instantiated by the crate. Then you can have a web client or a rust client receiving all the logs in a stream way.
 
 See `examples/basic.rs` for minimal server setup and `examples/retry.rs` for server with retry logic.
 

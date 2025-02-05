@@ -69,13 +69,13 @@ impl LoggingService {
 
         // Start test log generation
         let _ = self.sender.clone();
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-            loop {
-                interval.tick().await;
-                info!("Test log message from server");
-            }
-        });
+        // tokio::spawn(async move {
+        //     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
+        //     loop {
+        //         interval.tick().await;
+        //         info!("Test log message from server");
+        //     }
+        // });
 
         // Start the gRPC server
         self.start_server(config).await
