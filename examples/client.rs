@@ -3,6 +3,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tonic::Request;
 use tracing::{debug, error, info};
+use tracing_subscriber::{fmt, EnvFilter};
 
 pub mod logging {
     tonic::include_proto!("logging");
@@ -52,8 +53,18 @@ async fn connect_with_retry(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
+// Setup logging for the client
+    fmt()
+        .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
+        .with_target(false)
+        .with_thread_ids(true)
+        .with_line_number(true)
+        .with_file(true)
+        .init();
+
     // Load configuration
-    let config = load_config("client.yaml")?;
+    let config = load_config("examples/client.yaml")?;
 
     info!("Starting log client...");
     loop {
