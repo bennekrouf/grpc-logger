@@ -44,6 +44,25 @@ grpc-logger = "0.1.0"
 
 ## Usage
 
+### Quick test
+
+Open a terminal and run:
+
+```
+cargo run
+```
+
+Open another terminal and run: 
+
+```
+cargo run --example client
+```
+
+You should see logs produced by the first terminal, appearing in the second terminal.
+
+__Important__: If the server is running on port 0.0.0.0, the client should try connecting on 120.0.0.1.
+
+
 ### Server Integration
 
 See `examples/basic.rs` for minimal server setup and `examples/retry.rs` for server with retry logic.
