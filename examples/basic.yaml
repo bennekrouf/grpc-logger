@@ -1,0 +1,7 @@
+output: Grpc  # or File or Console
+level: debug
+grpc:
+  address: "0.0.0.0"
+  port: 50052
+file_path: "logs"
+file_name: "basic.log"

@@ -7,7 +7,7 @@ use std::pin::Pin;
 use futures::Stream;
 use tracing::{warn, info};
 use tonic_web::GrpcWebLayer;
-use crate::config::{LogConfig, setup_logging};
+use crate::config::{LogConfig, setup_logging, LogOutput};
 pub mod logging {
     tonic::include_proto!("logging");
 }
@@ -38,7 +38,32 @@ impl LoggingService {
         // Setup logging first
         let service_clone = self.clone();
         let _guard = setup_logging(config, Some(service_clone))?;
-        
+
+        // Log initialization details
+        info!("Logger initialized with output: {:?}", config.output);
+        match &config.output {
+            LogOutput::File => {
+                info!(
+                    "File logging enabled - path: {}, filename: {}", 
+                    config.file_path.as_deref().unwrap_or("default"),
+                    config.file_name.as_deref().unwrap_or("app.log")
+                );
+            },
+            LogOutput::Grpc => {
+                if let Some(grpc_config) = &config.grpc {
+                    info!(
+                        "GRPC logging enabled - server running on {}:{}", 
+                        grpc_config.address,
+                        grpc_config.port
+                    );
+                }
+            },
+            LogOutput::Console => {
+                info!("Console logging enabled");
+            }
+        }
+        info!("Log level set to: {}", config.level);
+
         // Start test log generation
         let sender = self.sender.clone();
         tokio::spawn(async move {
@@ -46,7 +71,6 @@ impl LoggingService {
             loop {
                 interval.tick().await;
                 info!("Test log message from server");
-                // You might want to create and send a LogMessage here
             }
         });
 
@@ -63,7 +87,6 @@ impl LoggingService {
 
         let service = self.clone();
         let handle = tokio::spawn(async move {
-            println!("Starting Log Server on {}", addr);
             match Server::builder()
                 .accept_http1(true)
                 .layer(GrpcWebLayer::new())

@@ -31,6 +31,25 @@ pub struct LogConfig {
     pub file_path: Option<String>,
     pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
+    #[serde(default)]
+    pub server_retry: ServerRetryConfig,  // For server binding retries
+    #[serde(default)]
+    pub client_retry: ClientRetryConfig,  // For client connection retries
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+pub struct ServerRetryConfig {
+    pub max_retries: u32,          // Fewer retries, maybe 5-10
+    pub base_delay_secs: u64,      // Shorter delays
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+pub struct ClientRetryConfig {
+    pub max_retries: u32,          // More retries, like 5000
+    pub base_delay_secs: u64,      // Can be longer
+    pub reconnect_delay_secs: u64, // For maintaining connection
 }
 
 // Timer formatting

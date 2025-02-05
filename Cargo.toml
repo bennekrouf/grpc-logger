@@ -31,3 +31,15 @@ path = "src/lib.rs"
 name = "grpc_server"
 path = "src/main.rs"
 
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+[[example]]
+name = "retry"
+path = "examples/retry.rs"
+
+[[example]]
+name = "client"
+path = "examples/client.rs"
+
