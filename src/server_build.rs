@@ -7,7 +7,7 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tonic::{Request, Response, Status};
 use tonic_web::GrpcWebLayer;
-use tracing::{info, warn, trace};
+use tracing::{info, trace, warn};
 pub mod logging {
     tonic::include_proto!("logging");
 }
@@ -79,14 +79,18 @@ impl LoggingService {
             let _ = self.sender.clone();
 
             tokio::spawn(async move {
-                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval_secs));
+                let mut interval =
+                    tokio::time::interval(tokio::time::Duration::from_secs(interval_secs));
                 loop {
                     interval.tick().await;
                     trace!("Test log message from server");
                 }
             });
 
-            info!("Debug mode enabled: sending test messages every {} seconds", interval_secs);
+            info!(
+                "Debug mode enabled: sending test messages every {} seconds",
+                interval_secs
+            );
         }
 
         // Start the gRPC server
@@ -95,56 +99,56 @@ impl LoggingService {
 
     /// Internal method to start the gRPC server
     async fn start_server(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let addr = match &config.grpc {
-        Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
-        None => "0.0.0.0:50052".to_string(),
-    }
-    .parse()?;
-
-    let descriptor_set = include_bytes!(concat!(env!("OUT_DIR"), "/logging_descriptor.bin"));
-    let reflection_service = Builder::configure()
-    .register_encoded_file_descriptor_set(descriptor_set)
-    .build_v1()?;
-
-    // Create CORS layer
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_headers(Any)
-        .allow_methods(Any)
-        .expose_headers(Any);
-
-    let service = self.clone();
-    let handle = tokio::spawn(async move {
-        match Server::builder()
-            .accept_http1(true)
-            .max_concurrent_streams(128)  // Set reasonable limits
-            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
-            .tcp_nodelay(true)
-            .layer(cors)  // Add CORS layer
-            .layer(GrpcWebLayer::new())
-            .add_service(LogServiceServer::new(service))
-            .add_service(reflection_service)  // Add reflection service
-            // .serve(addr)
-            .serve_with_shutdown(addr, async {
-                tokio::signal::ctrl_c().await.ok();
-                println!("Shutting down server...");
-            })
-            .await
-        {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                if e.to_string().contains("Address already in use") {
-                    eprintln!("Port already in use. Please stop other instances first.");
-                }
-                Err(e.into())
-            }
+        let addr = match &config.grpc {
+            Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
+            None => "0.0.0.0:50052".to_string(),
         }
-    });
+        .parse()?;
 
-    let mut server_handle = self.server_handle.lock().await;
-    *server_handle = Some(handle);
-    Ok(())
-}
+        let descriptor_set = include_bytes!(concat!(env!("OUT_DIR"), "/logging_descriptor.bin"));
+        let reflection_service = Builder::configure()
+            .register_encoded_file_descriptor_set(descriptor_set)
+            .build_v1()?;
+
+        // Create CORS layer
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_headers(Any)
+            .allow_methods(Any)
+            .expose_headers(Any);
+
+        let service = self.clone();
+        let handle = tokio::spawn(async move {
+            match Server::builder()
+                .accept_http1(true)
+                .max_concurrent_streams(128) // Set reasonable limits
+                .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
+                .tcp_nodelay(true)
+                .layer(cors) // Add CORS layer
+                .layer(GrpcWebLayer::new())
+                .add_service(LogServiceServer::new(service))
+                .add_service(reflection_service) // Add reflection service
+                // .serve(addr)
+                .serve_with_shutdown(addr, async {
+                    tokio::signal::ctrl_c().await.ok();
+                    println!("Shutting down server...");
+                })
+                .await
+            {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    if e.to_string().contains("Address already in use") {
+                        eprintln!("Port already in use. Please stop other instances first.");
+                    }
+                    Err(e.into())
+                }
+            }
+        });
+
+        let mut server_handle = self.server_handle.lock().await;
+        *server_handle = Some(handle);
+        Ok(())
+    }
 
     pub fn broadcast_log(&self, log: LogMessage) {
         if self.sender.receiver_count() > 0 {
@@ -160,8 +164,8 @@ impl LogService for LoggingService {
     type SubscribeToLogsStream = Pin<Box<dyn Stream<Item = Result<LogMessage, Status>> + Send>>;
 
     async fn subscribe_to_logs(
-    &self,
-    request: Request<SubscribeRequest>,
+        &self,
+        request: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeToLogsStream>, Status> {
         // Get metadata before consuming the request
         let metadata = request.metadata();
@@ -185,32 +189,38 @@ impl LogService for LoggingService {
             target: Some("grpc_logger".to_string()),
             thread_id: Some("main".to_string()),
             file: Some("server.rs".to_string()),
-            line: Some("1".to_string(),)
+            line: Some("1".to_string()),
         };
         self.broadcast_log(test_message);
 
-        let mapped_stream = Box::pin(stream
-            .map(move |result| {
-                match &result {
-                    Ok(log) => {
-                        // Use as_ref() to get a reference to the String inside Option
-                        if let Some(target) = log.target.as_ref() {
-                            if !target.starts_with("h2::") 
-                                && !target.starts_with("tonic::") 
-                                && !target.starts_with("tonic_web::") 
-                                && target == "grpc_logger" {
-                                println!("📤 Sending log to client {}: {:?}", client_id_for_map, log);
+        let mapped_stream = Box::pin(
+            stream
+                .map(move |result| {
+                    match &result {
+                        Ok(log) => {
+                            // Use as_ref() to get a reference to the String inside Option
+                            if let Some(target) = log.target.as_ref() {
+                                if !target.starts_with("h2::")
+                                    && !target.starts_with("tonic::")
+                                    && !target.starts_with("tonic_web::")
+                                    && target == "grpc_logger"
+                                {
+                                    println!(
+                                        "📤 Sending log to client {}: {:?}",
+                                        client_id_for_map, log
+                                    );
+                                }
                             }
                         }
-                    },
-                    Err(e) => println!("❌ Error for client {}: {:?}", client_id_for_map, e),
-                }
-                map_broadcast_result(result)
-            })
-            .chain(futures::stream::once(async move { 
-                println!("🏁 Stream ending for client {}", client_id_for_end);
-                Err(Status::ok("Stream complete"))
-            })));
+                        Err(e) => println!("❌ Error for client {}: {:?}", client_id_for_map, e),
+                    }
+                    map_broadcast_result(result)
+                })
+                .chain(futures::stream::once(async move {
+                    println!("🏁 Stream ending for client {}", client_id_for_end);
+                    Err(Status::ok("Stream complete"))
+                })),
+        );
 
         println!("✅ Stream setup complete for client: {}", client_id);
         Ok(Response::new(mapped_stream))

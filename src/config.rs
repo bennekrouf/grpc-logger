@@ -128,15 +128,13 @@ pub fn setup_logging(
                 .with_thread_names(false)
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
-            tracing::subscriber::set_global_default(
-        subscriber
-            .with(layer)
-            .with(grpc_service.map(|service| GrpcLayer { 
-                service,
-                config: config.log_fields.clone(), 
-            })),
-    )
-    .expect("Failed to set subscriber");
+            tracing::subscriber::set_global_default(subscriber.with(layer).with(grpc_service.map(
+                |service| GrpcLayer {
+                    service,
+                    config: config.log_fields.clone(),
+                },
+            )))
+            .expect("Failed to set subscriber");
             Ok(Some(guard))
         }
         LogOutput::Console | LogOutput::Grpc => {
@@ -152,15 +150,13 @@ pub fn setup_logging(
                 .with_thread_names(false)
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
-            tracing::subscriber::set_global_default(
-        subscriber
-            .with(layer)
-            .with(grpc_service.map(|service| GrpcLayer { 
-                service,
-                config: config.log_fields.clone(), 
-            })),
-    )
-    .expect("Failed to set subscriber");
+            tracing::subscriber::set_global_default(subscriber.with(layer).with(grpc_service.map(
+                |service| GrpcLayer {
+                    service,
+                    config: config.log_fields.clone(),
+                },
+            )))
+            .expect("Failed to set subscriber");
             Ok(None)
         }
     }

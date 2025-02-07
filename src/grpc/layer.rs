@@ -1,8 +1,8 @@
-use tracing::field::{Field, Visit};
-use tracing_subscriber::Layer;
+use crate::config::LogFieldsConfig;
 use crate::server_build::logging::LogMessage;
 use crate::server_build::LoggingService;
-use crate::config::LogFieldsConfig;
+use tracing::field::{Field, Visit};
+use tracing_subscriber::Layer;
 
 pub struct GrpcLayer {
     pub service: LoggingService,
@@ -19,16 +19,14 @@ where
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
         // Define prefixes to filter in a single array
-        const INTERNAL_PREFIXES: &[&str] = &[
-            "h2::",
-            "tonic::",
-            "hyper::",
-            "tower::",
-        ];
+        const INTERNAL_PREFIXES: &[&str] = &["h2::", "tonic::", "hyper::", "tower::"];
 
         // Check if target starts with any internal prefix
         let target = event.metadata().target();
-        if INTERNAL_PREFIXES.iter().any(|prefix| target.starts_with(prefix)) {
+        if INTERNAL_PREFIXES
+            .iter()
+            .any(|prefix| target.starts_with(prefix))
+        {
             return;
         }
 
@@ -60,8 +58,11 @@ where
         ];
 
         // Skip if message is empty or contains any filtered pattern
-        if visitor.message.trim().is_empty() || 
-           FILTERED_PATTERNS.iter().any(|pattern| visitor.message.contains(pattern)) {
+        if visitor.message.trim().is_empty()
+            || FILTERED_PATTERNS
+                .iter()
+                .any(|pattern| visitor.message.contains(pattern))
+        {
             return;
         }
 

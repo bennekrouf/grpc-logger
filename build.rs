@@ -10,9 +10,8 @@ fn main() {
 
     // Configure and compile the proto files
     tonic_build::configure()
-        .protoc_arg("--experimental_allow_proto3_optional")  
+        .protoc_arg("--experimental_allow_proto3_optional")
         .file_descriptor_set_path(descriptor_path)
         .compile_protos(&["log_service.proto"], &["proto"])
         .unwrap_or_else(|e| panic!("Failed to compile proto files: {}", e));
 }
-

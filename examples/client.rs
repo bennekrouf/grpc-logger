@@ -63,14 +63,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = load_config("examples/client.yaml")?;
     info!("Starting log client...");
-    
+
     loop {
         let mut client = connect_with_retry(&config).await?;
         let request = SubscribeRequest {
             client_id: "rust-client-1".to_string(),
         };
         debug!("Subscribing to log stream...");
-        
+
         match client
             .subscribe_to_logs(Request::new(request.clone()))
             .await
@@ -91,10 +91,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             log.timestamp.unwrap_or_default(),
                             log.level.unwrap_or_default(),
                             log.message,
-                            log.target.as_ref().map_or(String::new(), |t| format!(", target: '{}'", t)),
-                            log.thread_id.as_ref().map_or(String::new(), |t| format!(", thread: '{}'", t)),
-                            log.file.as_ref().map_or(String::new(), |f| format!(", file: '{}'", f)),
-                            log.line.as_ref().map_or(String::new(), |l| format!(", line: {}", l)),
+                            log.target
+                                .as_ref()
+                                .map_or(String::new(), |t| format!(", target: '{}'", t)),
+                            log.thread_id
+                                .as_ref()
+                                .map_or(String::new(), |t| format!(", thread: '{}'", t)),
+                            log.file
+                                .as_ref()
+                                .map_or(String::new(), |f| format!(", file: '{}'", f)),
+                            log.line
+                                .as_ref()
+                                .map_or(String::new(), |l| format!(", line: {}", l)),
                         );
                         info!("{}", formatted_log);
                     }
