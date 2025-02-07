@@ -10,17 +10,9 @@ fn main() {
 
     // Configure and compile the proto files
     tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")  
         .file_descriptor_set_path(descriptor_path)
         .compile_protos(&["log_service.proto"], &["proto"])
         .unwrap_or_else(|e| panic!("Failed to compile proto files: {}", e));
 }
 
-// fn main() -> Result<(), Box<dyn std::error::Error>> {
-//
-//     let proto_file = "./log_service";
-//     let descriptor_path = Path::new(&env::var("OUT_DIR")?).join("logging_descriptor.bin");
-//     tonic_build::configure()
-//         .file_descriptor_set_path(&descriptor_path)  // This generates the descriptor
-//         .compile(&[proto_file], &["proto"])?;
-//     Ok(())
-// }

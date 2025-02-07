@@ -13,11 +13,11 @@ message SubscribeRequest {
 }
 
 message LogMessage {
-  string timestamp = 1;
-  string level = 2;
+  optional string timestamp = 1;
+  optional string level = 2;
   string message = 3;
-  string target = 4;
-  string thread_id = 5;
-  string file = 6;
-  string line = 7;
+  optional string target = 4;
+  optional string thread_id = 5;
+  optional string file = 6;
+  optional string line = 7;
 }

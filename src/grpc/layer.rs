@@ -34,16 +34,16 @@ where
         };
 
         event.record(&mut visitor);
-        let thread_id = format!("{:?}", std::thread::current().id());
+        let thread_id =  Some(format!("{:?}", std::thread::current().id()));
 
         let log = LogMessage {
-            timestamp: chrono::Local::now().to_rfc3339(),
-            level: event.metadata().level().to_string(),
+            timestamp: Some(chrono::Local::now().to_rfc3339()),
+            level:  Some(event.metadata().level().to_string()),
             message: visitor.message,
-            target: event.metadata().target().to_string(),
+            target:  Some(event.metadata().target().to_string()),
             thread_id,
-            file: event.metadata().file().unwrap_or("unknown").to_string(),
-            line: event.metadata().line().unwrap_or(0).to_string(),
+            file:  Some(event.metadata().file().unwrap_or("unknown").to_string()),
+            line:  Some(event.metadata().line().unwrap_or(0).to_string()),
         };
 
         self.service.broadcast_log(log);

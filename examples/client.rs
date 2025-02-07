@@ -4,7 +4,6 @@ use tokio::time::sleep;
 use tonic::Request;
 use tracing::{debug, error, info};
 use tracing_subscriber::{fmt, EnvFilter};
-
 pub mod logging {
     tonic::include_proto!("logging");
 }
@@ -22,7 +21,6 @@ async fn connect_with_retry(
         config.grpc.as_ref().unwrap().address,
         config.grpc.as_ref().unwrap().port
     );
-
     loop {
         debug!("Attempting to connect to {}", server_addr);
         match LogServiceClient::connect(server_addr.clone()).await {
@@ -53,8 +51,7 @@ async fn connect_with_retry(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
-// Setup logging for the client
+    // Setup logging for the client
     fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .with_target(false)
@@ -65,15 +62,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load configuration
     let config = load_config("examples/client.yaml")?;
-
     info!("Starting log client...");
+    
     loop {
         let mut client = connect_with_retry(&config).await?;
         let request = SubscribeRequest {
             client_id: "rust-client-1".to_string(),
         };
-
         debug!("Subscribing to log stream...");
+        
         match client
             .subscribe_to_logs(Request::new(request.clone()))
             .await
@@ -82,8 +79,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("Connected to log server. Waiting for logs...");
                 let mut stream = response.into_inner();
                 while let Some(log) = stream.message().await? {
-                    if !log.target.starts_with("h2::") && !log.target.starts_with("tonic::") {
-                        info!("Received log: {:?}", log);
+                    // Check if target exists and filter internal logs
+                    let should_display = log.target.as_ref().map_or(true, |target| {
+                        !target.starts_with("h2::") && !target.starts_with("tonic::")
+                    });
+
+                    if should_display {
+                        // Format log message with only available fields
+                        let formatted_log = format!(
+                            "Log {{ timestamp: {}, level: {}, message: '{}'{}{}{}{} }}",
+                            log.timestamp.unwrap_or_default(),
+                            log.level.unwrap_or_default(),
+                            log.message,
+                            log.target.as_ref().map_or(String::new(), |t| format!(", target: '{}'", t)),
+                            log.thread_id.as_ref().map_or(String::new(), |t| format!(", thread: '{}'", t)),
+                            log.file.as_ref().map_or(String::new(), |f| format!(", file: '{}'", f)),
+                            log.line.as_ref().map_or(String::new(), |l| format!(", line: {}", l)),
+                        );
+                        info!("{}", formatted_log);
                     }
                 }
                 debug!("Stream ended. Attempting to reconnect...");

@@ -43,7 +43,7 @@ impl LoggingService {
     pub async fn init(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
         // Setup logging first
         let service_clone = self.clone();
-        let second_clone = self.clone();
+        // let second_clone = self.clone();
         let _guard = setup_logging(config, Some(service_clone))?;
 
         // Log initialization details
@@ -171,13 +171,13 @@ impl LogService for LoggingService {
 
         // Add test message right after connection
         let test_message = LogMessage {
-            timestamp: chrono::Utc::now().to_rfc3339(),
-            level: "INFO".to_string(),
+            timestamp: Some(chrono::Utc::now().to_rfc3339()),
+            level: Some("INFO".to_string()),
             message: format!("Test message for client {}", client_id),
-            target: "grpc_logger".to_string(),
-            thread_id: "main".to_string(),
-            file: "server.rs".to_string(),
-            line: "1".to_string(),
+            target: Some("grpc_logger".to_string()),
+            thread_id: Some("main".to_string()),
+            file: Some("server.rs".to_string()),
+            line: Some("1".to_string(),)
         };
         self.broadcast_log(test_message);
 
@@ -185,12 +185,14 @@ impl LogService for LoggingService {
             .map(move |result| {
                 match &result {
                     Ok(log) => {
-                        // Filter out ALL internal logs and only print our application logs
-                        if !log.target.starts_with("h2::")
-                            && !log.target.starts_with("tonic::")
-                            && !log.target.starts_with("tonic_web::")
-                            && log.target == "grpc_logger" {
-                            println!("📤 Sending log to client {}: {:?}", client_id_for_map, log);
+                        // Use as_ref() to get a reference to the String inside Option
+                        if let Some(target) = log.target.as_ref() {
+                            if !target.starts_with("h2::") 
+                                && !target.starts_with("tonic::") 
+                                && !target.starts_with("tonic_web::") 
+                                && target == "grpc_logger" {
+                                println!("📤 Sending log to client {}: {:?}", client_id_for_map, log);
+                            }
                         }
                     },
                     Err(e) => println!("❌ Error for client {}: {:?}", client_id_for_map, e),
