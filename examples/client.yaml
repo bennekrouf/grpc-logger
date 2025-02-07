@@ -1,5 +1,5 @@
 output: grpc
-level: debug
+level: info
 grpc:
   address: "127.0.0.1"
   port: 50052

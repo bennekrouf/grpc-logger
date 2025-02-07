@@ -81,7 +81,6 @@ pub fn setup_logging(
         _ => Level::INFO,
     };
 
-    //let _filter = EnvFilter::from_default_env().add_directive(level.into());
     EnvFilter::new("")
         .add_directive("logger_to_client=info".parse()?) // Your app logs
         .add_directive("warn".parse()?);
