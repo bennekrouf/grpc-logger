@@ -1,7 +1,5 @@
 use crate::config::{setup_logging, LogConfig, LogOutput};
 use futures::Stream;
-use futures::future;
-use std::time::Duration;
 use futures::StreamExt;
 use std::pin::Pin;
 use tokio::sync::broadcast;
@@ -9,7 +7,7 @@ use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tokio_stream::wrappers::BroadcastStream;
 use tonic::{Request, Response, Status};
 use tonic_web::GrpcWebLayer;
-use tracing::{info, warn};
+use tracing::{info, warn, trace};
 pub mod logging {
     tonic::include_proto!("logging");
 }
@@ -76,29 +74,12 @@ impl LoggingService {
         let _ = self.sender.clone();
 
         tokio::spawn(async move {
-            let mut interval = tokio::time::interval(Duration::from_secs(3000));
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
             loop {
                 interval.tick().await;
-                let log = LogMessage {
-                    timestamp: chrono::Utc::now().to_rfc3339(),
-                    level: "INFO".to_string(),
-                    message: "Test log message".to_string(),
-                    target: "test_logger".to_string(),
-                    thread_id: "1".to_string(),
-                    file: "test.rs".to_string(),
-                    line: "123".to_string(),
-                };
-                second_clone.broadcast_log(log);
+                trace!("Test log message from server");
             }
         });
-
-        // tokio::spawn(async move {
-        //     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-        //     loop {
-        //         interval.tick().await;
-        //         info!("Test log message from server");
-        //     }
-        // });
 
         // Start the gRPC server
         self.start_server(config).await

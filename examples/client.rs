@@ -70,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let mut client = connect_with_retry(&config).await?;
         let request = SubscribeRequest {
-            client_id: "test-client-1".to_string(),
+            client_id: "rust-client-1".to_string(),
         };
 
         debug!("Subscribing to log stream...");
