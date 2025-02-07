@@ -1,5 +1,7 @@
 use crate::config::{setup_logging, LogConfig, LogOutput};
 use futures::Stream;
+use futures::future;
+use std::time::Duration;
 use futures::StreamExt;
 use std::pin::Pin;
 use tokio::sync::broadcast;
@@ -17,6 +19,8 @@ use logging::{LogMessage, SubscribeRequest};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tonic::transport::Server;
+use tonic_reflection::server::Builder;
+use tower_http::cors::{Any, CorsLayer};
 
 #[derive(Debug, Clone)]
 pub struct LoggingService {
@@ -69,13 +73,13 @@ impl LoggingService {
 
         // Start test log generation
         let _ = self.sender.clone();
-        // tokio::spawn(async move {
-        //     let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-        //     loop {
-        //         interval.tick().await;
-        //         info!("Test log message from server");
-        //     }
-        // });
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
+            loop {
+                interval.tick().await;
+                info!("Test log message from server");
+            }
+        });
 
         // Start the gRPC server
         self.start_server(config).await
@@ -83,35 +87,56 @@ impl LoggingService {
 
     /// Internal method to start the gRPC server
     async fn start_server(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
-        let addr = match &config.grpc {
-            Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
-            None => "0.0.0.0:50052".to_string(),
-        }
-        .parse()?;
-
-        let service = self.clone();
-        let handle = tokio::spawn(async move {
-            match Server::builder()
-                .accept_http1(true)
-                .layer(GrpcWebLayer::new())
-                .add_service(LogServiceServer::new(service))
-                .serve(addr)
-                .await
-            {
-                Ok(_) => Ok(()),
-                Err(e) => {
-                    if e.to_string().contains("Address already in use") {
-                        eprintln!("Port already in use. Please stop other instances first.");
-                    }
-                    Err(e.into())
-                }
-            }
-        });
-
-        let mut server_handle = self.server_handle.lock().await;
-        *server_handle = Some(handle);
-        Ok(())
+    let addr = match &config.grpc {
+        Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
+        None => "0.0.0.0:50052".to_string(),
     }
+    .parse()?;
+
+    let descriptor_set = include_bytes!(concat!(env!("OUT_DIR"), "/logging_descriptor.bin"));
+    let reflection_service = Builder::configure()
+    .register_encoded_file_descriptor_set(descriptor_set)
+    .build_v1()?;
+
+    // Create CORS layer
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_headers(Any)
+        .allow_methods(Any)
+        .expose_headers(Any);
+
+    let service = self.clone();
+    let handle = tokio::spawn(async move {
+        match Server::builder()
+            .accept_http1(true)
+            .max_concurrent_streams(128)  // Set reasonable limits
+            .tcp_keepalive(Some(std::time::Duration::from_secs(60)))
+            .tcp_nodelay(true)
+            .layer(cors)  // Add CORS layer
+            .layer(GrpcWebLayer::new())
+            .add_service(LogServiceServer::new(service))
+            .add_service(reflection_service)  // Add reflection service
+            // .serve(addr)
+            .serve_with_shutdown(addr, async {
+                tokio::signal::ctrl_c().await.ok();
+                println!("Shutting down server...");
+            })
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(e) => {
+                if e.to_string().contains("Address already in use") {
+                    eprintln!("Port already in use. Please stop other instances first.");
+                }
+                Err(e.into())
+            }
+        }
+    });
+
+    let mut server_handle = self.server_handle.lock().await;
+    *server_handle = Some(handle);
+    Ok(())
+}
 
     pub fn broadcast_log(&self, log: LogMessage) {
         if self.sender.receiver_count() > 0 {
@@ -132,8 +157,16 @@ impl LogService for LoggingService {
     ) -> Result<Response<Self::SubscribeToLogsStream>, Status> {
         println!("New client connected: {}", request.into_inner().client_id);
         let receiver = self.sender.subscribe();
-        let stream = BroadcastStream::new(receiver);
-        let mapped_stream = Box::pin(stream.map(|result| map_broadcast_result(result)));
+        
+        // Create a stream that handles end of stream properly
+        let stream = BroadcastStream::new(receiver)
+            .map(|result| map_broadcast_result(result))
+            .take_while(|result| {
+                // Continue streaming unless we get an error
+                future::ready(result.is_ok())
+            });
+
+        let mapped_stream = Box::pin(stream);
         Ok(Response::new(mapped_stream))
     }
 }
@@ -141,5 +174,14 @@ impl LogService for LoggingService {
 fn map_broadcast_result(
     result: Result<LogMessage, BroadcastStreamRecvError>,
 ) -> Result<LogMessage, Status> {
-    result.map_err(|e| Status::internal(format!("Failed to receive log message: {}", e)))
+    match result {
+        Ok(msg) => Ok(msg),
+        Err(BroadcastStreamRecvError::Lagged(n)) => {
+            println!("Client lagging behind by {} messages", n);
+            Err(Status::resource_exhausted(format!(
+                "Client lagging behind by {} messages",
+                n
+            )))
+        }
+    }
 }
