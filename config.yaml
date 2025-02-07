@@ -5,3 +5,9 @@ grpc:
   port: 50052
 # file_path: "logs"
 # file_name: "app.log"
+log_fields:
+  include_thread_id: false
+  include_target: false
+  include_file: false
+  include_line: false
+  include_timestamp: false

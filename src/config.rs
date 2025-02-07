@@ -24,6 +24,16 @@ pub enum LogOutput {
     Grpc,
 }
 
+#[derive(Debug, Deserialize, Default, Clone)]
+#[serde(default)]
+pub struct LogFieldsConfig {
+    pub include_thread_id: bool,
+    pub include_target: bool,
+    pub include_file: bool,
+    pub include_line: bool,
+    pub include_timestamp: bool,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LogConfig {
     pub output: LogOutput,
@@ -32,9 +42,11 @@ pub struct LogConfig {
     pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
     #[serde(default)]
-    pub server_retry: ServerRetryConfig, // For server binding retries
+    pub server_retry: ServerRetryConfig,
     #[serde(default)]
-    pub client_retry: ClientRetryConfig, // For client connection retries
+    pub client_retry: ClientRetryConfig,
+    #[serde(default)]
+    pub log_fields: LogFieldsConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -108,12 +120,14 @@ pub fn setup_logging(
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
             tracing::subscriber::set_global_default(
-                subscriber
-                    .with(layer)
-                    .with(grpc_service.map(|service| GrpcLayer { service })),
-            )
-            .expect("Failed to set subscriber");
-
+        subscriber
+            .with(layer)
+            .with(grpc_service.map(|service| GrpcLayer { 
+                service,
+                config: config.log_fields.clone(), 
+            })),
+    )
+    .expect("Failed to set subscriber");
             Ok(Some(guard))
         }
         LogOutput::Console | LogOutput::Grpc => {
@@ -130,12 +144,14 @@ pub fn setup_logging(
                 .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
 
             tracing::subscriber::set_global_default(
-                subscriber
-                    .with(layer)
-                    .with(grpc_service.map(|service| GrpcLayer { service })),
-            )
-            .expect("Failed to set subscriber");
-
+        subscriber
+            .with(layer)
+            .with(grpc_service.map(|service| GrpcLayer { 
+                service,
+                config: config.log_fields.clone(), 
+            })),
+    )
+    .expect("Failed to set subscriber");
             Ok(None)
         }
     }
