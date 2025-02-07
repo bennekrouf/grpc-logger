@@ -73,13 +73,21 @@ impl LoggingService {
         // Start test log generation
         let _ = self.sender.clone();
 
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-            loop {
-                interval.tick().await;
-                trace!("Test log message from server");
-            }
-        });
+        // Start test log generation only if debug mode is enabled
+        if config.debug_mode.enabled {
+            let interval_secs = config.debug_mode.test_interval_secs.max(1); // Ensure at least 1 second
+            let _ = self.sender.clone();
+
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(interval_secs));
+                loop {
+                    interval.tick().await;
+                    trace!("Test log message from server");
+                }
+            });
+
+            info!("Debug mode enabled: sending test messages every {} seconds", interval_secs);
+        }
 
         // Start the gRPC server
         self.start_server(config).await

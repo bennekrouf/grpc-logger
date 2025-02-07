@@ -11,3 +11,6 @@ log_fields:
   include_file: false
   include_line: false
   include_timestamp: false
+debug_mode:
+  enabled: false
+  test_interval_secs: 10

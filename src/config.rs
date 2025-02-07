@@ -34,6 +34,13 @@ pub struct LogFieldsConfig {
     pub include_timestamp: bool,
 }
 
+#[derive(Debug, Deserialize, Default)]
+#[serde(default)]
+pub struct DebugConfig {
+    pub enabled: bool,
+    pub test_interval_secs: u64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct LogConfig {
     pub output: LogOutput,
@@ -47,6 +54,8 @@ pub struct LogConfig {
     pub client_retry: ClientRetryConfig,
     #[serde(default)]
     pub log_fields: LogFieldsConfig,
+    #[serde(default)]
+    pub debug_mode: DebugConfig,
 }
 
 #[derive(Debug, Deserialize, Default)]
