@@ -72,13 +72,20 @@ cargo run --example basic
 cargo run --example retry
 ```
 
-### Client Usage
+### Web Client Usage
+
+See this repe which is a React implementation of the client :
+
+[https://github.com/bennekrouf/grpc-logger-web-client](Client react)
+
+### Rust Client Usage
 
 See `examples/client.rs` for a complete client implementation with retry and reconnection handling.
 
 Run client:
 ```
-cargo run --bin client
+cargo run --example client
+
 ```
 
 ## License
