@@ -7,6 +7,7 @@ use std::io;
 use tracing::Level;
 use tracing_appender::non_blocking::NonBlocking;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
+use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::format::Writer;
 use tracing_subscriber::fmt::layer;
 use tracing_subscriber::fmt::time::FormatTime;
@@ -45,6 +46,7 @@ pub struct DebugConfig {
 pub struct LogConfig {
     pub output: LogOutput,
     pub level: String,
+    pub whoami: Option<String>, // Add whoami field
     pub file_path: Option<String>,
     pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
@@ -82,6 +84,74 @@ impl FormatTime for CustomTimer {
     }
 }
 
+// Custom format struct
+#[derive(Clone)]
+struct CustomFormatter {
+    whoami: Option<String>,
+    config: LogFieldsConfig,
+}
+
+impl<S, N> fmt::FormatEvent<S, N> for CustomFormatter
+where
+    S: tracing::Subscriber + for<'lookup> tracing_subscriber::registry::LookupSpan<'lookup>,
+    N: for<'writer> fmt::FormatFields<'writer> + 'static,
+{
+    fn format_event(
+        &self,
+        ctx: &fmt::FmtContext<'_, S, N>,
+        mut writer: fmt::format::Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        // Write timestamp
+        let time = chrono::Local::now();
+        write!(writer, "{}", time.format("[%Y-%m-%d %H:%M:%S]"))?;
+        writer.write_char(' ')?;
+
+        // Write level
+        let level = *event.metadata().level();
+        write!(writer, "{:>5} ", level)?;
+
+        // Write whoami prefix if present
+        if let Some(whoami) = &self.whoami {
+            write!(writer, "[{}] ", whoami)?;
+        }
+
+        // Write target if configured
+        if self.config.include_target
+            && event.metadata().target() != "tokio_util::codec::framed_impl"
+        {
+            write!(writer, "{} - ", event.metadata().target())?;
+        }
+
+        // Write thread ID if configured
+        if self.config.include_thread_id {
+            write!(writer, "thread={:?} ", std::thread::current().id())?;
+        }
+
+        // Write file and line if configured
+        if self.config.include_file {
+            if let Some(file) = event.metadata().file() {
+                write!(writer, "{}:", file)?;
+                if self.config.include_line {
+                    if let Some(line) = event.metadata().line() {
+                        write!(writer, "{} ", line)?;
+                    }
+                } else {
+                    write!(writer, " ")?;
+                }
+            }
+        } else if self.config.include_line {
+            if let Some(line) = event.metadata().line() {
+                write!(writer, "line={} ", line)?;
+            }
+        }
+
+        // Write the actual message
+        ctx.field_format().format_fields(writer.by_ref(), event)?;
+        writeln!(writer)
+    }
+}
+
 // Configuration and setup functions
 pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error>> {
     let config_str = fs::read_to_string(path)?;
@@ -102,11 +172,15 @@ pub fn setup_logging(
         _ => Level::INFO,
     };
 
-    EnvFilter::new("")
-        .add_directive("logger_to_client=info".parse()?) // Your app logs
+    let env_filter = EnvFilter::new("")
+        .add_directive("logger_to_client=info".parse()?)
         .add_directive("warn".parse()?);
 
     let subscriber = Registry::default();
+    let format = CustomFormatter {
+        whoami: config.whoami.clone(),
+        config: config.log_fields.clone(),
+    };
 
     match config.output {
         LogOutput::File => {
@@ -117,16 +191,9 @@ pub fn setup_logging(
             let (non_blocking, guard) = NonBlocking::new(file_appender);
 
             let layer = layer()
+                .event_format(format)
                 .with_writer(non_blocking)
-                .with_timer(CustomTimer)
-                .with_target(false)
-                .with_thread_ids(false)
-                .with_file(false)
-                .with_line_number(false)
-                .with_ansi(false)
-                .with_level(true)
-                .with_thread_names(false)
-                .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
+                .with_filter(env_filter.add_directive(level.into()));
 
             tracing::subscriber::set_global_default(subscriber.with(layer).with(grpc_service.map(
                 |service| GrpcLayer {

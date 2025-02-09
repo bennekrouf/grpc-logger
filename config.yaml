@@ -1,3 +1,4 @@
+whoami: "grpc-logger"
 output: grpc # console, file
 level: info
 grpc:
@@ -12,5 +13,5 @@ log_fields:
   include_line: false
   include_timestamp: false
 debug_mode:
-  enabled: false
+  enabled: true
   test_interval_secs: 10
