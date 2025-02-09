@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Keep the main task running until ctrl-c
     tokio::signal::ctrl_c().await?;
-    println!("Shutting down server...");
+    tracing::info!("Shutting down server...");
 
     Ok(())
 }

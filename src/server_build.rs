@@ -137,14 +137,14 @@ impl LoggingService {
                 // .serve(addr)
                 .serve_with_shutdown(addr, async {
                     tokio::signal::ctrl_c().await.ok();
-                    println!("Shutting down server...");
+                    info!("Shutting down server...");
                 })
                 .await
             {
                 Ok(_) => Ok(()),
                 Err(e) => {
                     if e.to_string().contains("Address already in use") {
-                        eprintln!("Port already in use. Please stop other instances first.");
+                        tracing::error!("Port already in use. Please stop other instances first.");
                     }
                     Err(e.into())
                 }
@@ -175,11 +175,11 @@ impl LogService for LoggingService {
     ) -> Result<Response<Self::SubscribeToLogsStream>, Status> {
         // Get metadata before consuming the request
         let metadata = request.metadata();
-        println!("📝 Request headers: {:?}", metadata);
+        info!("📝 Request headers: {:?}", metadata);
 
         // Now consume the request to get client_id
         let client_id = request.into_inner().client_id;
-        println!("🔌 New client attempting to connect: {}", client_id);
+        info!("🔌 New client attempting to connect: {}", client_id);
 
         let receiver = self.sender.subscribe();
         let stream = BroadcastStream::new(receiver);
@@ -211,24 +211,26 @@ impl LogService for LoggingService {
                                     && !target.starts_with("tonic_web::")
                                     && target == "grpc_logger"
                                 {
-                                    println!(
+                                    info!(
                                         "📤 Sending log to client {}: {:?}",
                                         client_id_for_map, log
                                     );
                                 }
                             }
                         }
-                        Err(e) => println!("❌ Error for client {}: {:?}", client_id_for_map, e),
+                        Err(e) => {
+                            tracing::error!("❌ Error for client {}: {:?}", client_id_for_map, e)
+                        }
                     }
                     map_broadcast_result(result)
                 })
                 .chain(futures::stream::once(async move {
-                    println!("🏁 Stream ending for client {}", client_id_for_end);
+                    info!("🏁 Stream ending for client {}", client_id_for_end);
                     Err(Status::ok("Stream complete"))
                 })),
         );
 
-        println!("✅ Stream setup complete for client: {}", client_id);
+        info!("✅ Stream setup complete for client: {}", client_id);
         Ok(Response::new(mapped_stream))
     }
 }
@@ -239,7 +241,7 @@ fn map_broadcast_result(
     match result {
         Ok(msg) => Ok(msg),
         Err(BroadcastStreamRecvError::Lagged(n)) => {
-            println!("Client lagging behind by {} messages", n);
+            tracing::error!("Client lagging behind by {} messages", n);
             Err(Status::resource_exhausted(format!(
                 "Client lagging behind by {} messages",
                 n
