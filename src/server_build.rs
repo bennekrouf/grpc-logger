@@ -30,6 +30,12 @@ pub struct LoggingService {
     >,
 }
 
+impl Default for LoggingService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoggingService {
     pub fn new() -> Self {
         let (sender, _) = broadcast::channel(1024);
