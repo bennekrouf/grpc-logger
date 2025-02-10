@@ -58,6 +58,31 @@ pub struct LogConfig {
     pub log_fields: LogFieldsConfig,
     #[serde(default)]
     pub debug_mode: DebugConfig,
+    #[serde(default = "default_log_all_messages")]
+    pub log_all_messages: bool,
+}
+
+fn default_log_all_messages() -> bool {
+    false  // By default, don't log all messages
+}
+
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            output: LogOutput::Console,  // or whatever default you prefer
+            level: "info".to_string(),
+            whoami: None,
+            file_path: None,
+            file_name: None,
+            grpc: None,
+            server_retry: ServerRetryConfig::default(),
+            client_retry: ClientRetryConfig::default(),
+            log_fields: LogFieldsConfig::default(),
+            debug_mode: DebugConfig::default(),
+            log_all_messages: false,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -99,36 +124,42 @@ where
     fn format_event(
         &self,
         ctx: &fmt::FmtContext<'_, S, N>,
-        mut writer: fmt::format::Writer<'_>,
+        mut writer: Writer<'_>,
         event: &tracing::Event<'_>,
     ) -> std::fmt::Result {
-        // Write timestamp
+        self.write_timestamp(&mut writer)?;
+        self.write_level(&mut writer, event)?;
+        self.write_metadata(&mut writer, event)?;
+        ctx.field_format().format_fields(writer.by_ref(), event)?;
+        writeln!(writer)
+    }
+}
+
+impl CustomFormatter {
+    fn write_timestamp(&self, writer: &mut Writer<'_>) -> std::fmt::Result {
         let time = chrono::Local::now();
-        write!(writer, "{}", time.format("[%Y-%m-%d %H:%M:%S]"))?;
-        writer.write_char(' ')?;
+        write!(writer, "[{}] ", time.format("%Y-%m-%d %H:%M:%S"))
+    }
 
-        // Write level
-        let level = *event.metadata().level();
-        write!(writer, "{:>5} ", level)?;
+    fn write_level(&self, writer: &mut Writer<'_>, event: &tracing::Event<'_>) -> std::fmt::Result {
+        write!(writer, "{:>5} ", event.metadata().level())
+    }
 
-        // Write whoami prefix if present
+    fn write_metadata(&self, writer: &mut Writer<'_>, event: &tracing::Event<'_>) -> std::fmt::Result {
         if let Some(whoami) = &self.whoami {
             write!(writer, "[{}] ", whoami)?;
         }
 
-        // Write target if configured
-        if self.config.include_target
-            && event.metadata().target() != "tokio_util::codec::framed_impl"
-        {
+        if self.config.include_target 
+            && event.metadata().target() != "tokio_util::codec::framed_impl" {
             write!(writer, "{} - ", event.metadata().target())?;
         }
 
-        // Write thread ID if configured
-        if self.config.include_thread_id {
-            write!(writer, "thread={:?} ", std::thread::current().id())?;
-        }
+        // Additional metadata fields...
+        self.write_location_info(writer, event)
+    }
 
-        // Write file and line if configured
+    fn write_location_info(&self, writer: &mut Writer<'_>, event: &tracing::Event<'_>) -> std::fmt::Result {
         if self.config.include_file {
             if let Some(file) = event.metadata().file() {
                 write!(writer, "{}:", file)?;
@@ -136,19 +167,10 @@ where
                     if let Some(line) = event.metadata().line() {
                         write!(writer, "{} ", line)?;
                     }
-                } else {
-                    write!(writer, " ")?;
                 }
             }
-        } else if self.config.include_line {
-            if let Some(line) = event.metadata().line() {
-                write!(writer, "line={} ", line)?;
-            }
         }
-
-        // Write the actual message
-        ctx.field_format().format_fields(writer.by_ref(), event)?;
-        writeln!(writer)
+        Ok(())
     }
 }
 

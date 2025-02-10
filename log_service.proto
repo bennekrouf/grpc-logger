@@ -19,4 +19,5 @@ message LogMessage {
   optional string thread_id = 5;
   optional string file = 6;
   optional string line = 7;
+  optional string whoami = 8;
 }

@@ -39,18 +39,22 @@ where
 
         struct LogVisitor {
             message: String,
+            whoami: String,
         }
 
         impl Visit for LogVisitor {
             fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-                if field.name() == "message" {
-                    self.message = format!("{:?}", value);
+                match field.name() {
+                    "message" => self.message = format!("{:?}", value),
+                    "whoami" => self.whoami = format!("{:?}", value),
+                    _ => {},
                 }
             }
         }
 
         let mut visitor = LogVisitor {
             message: String::new(),
+            whoami: String::new(),
         };
         event.record(&mut visitor);
 
@@ -92,6 +96,7 @@ where
             },
             level: Some(event.metadata().level().to_string()),
             message: visitor.message,
+            whoami: Some(visitor.whoami),
             target: if self.config.include_target {
                 Some(target.to_string())
             } else {

@@ -58,6 +58,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_thread_ids(true)
         .with_line_number(true)
         .with_file(true)
+        .with_span_events(fmt::format::FmtSpan::FULL) // Include span events
+        // .fmt_fields(tracing_subscriber::fmt::format::FullFields::new())
+        .pretty()
         .init();
 
     // Load configuration
