@@ -6,7 +6,7 @@ use tracing::{debug, error, info};
 async fn init_with_retry(
     config: &LogConfig,
     service: LoggingService,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let mut retry_count = 0;
     let retry_config = &config.client_retry; // Using client retry settings
     let base_delay = Duration::from_secs(retry_config.base_delay_secs);
@@ -37,7 +37,7 @@ async fn init_with_retry(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Load configuration with retry settings
     let config = load_config("examples/retry.yaml")?;
 

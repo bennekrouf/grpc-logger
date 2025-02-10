@@ -2,7 +2,7 @@ use grpc_logger::{config::load_config, LoggingService};
 use tracing::info;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Load basic configuration
     let config = load_config("examples/basic.yaml")?;
 

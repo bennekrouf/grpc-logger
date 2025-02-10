@@ -51,7 +51,7 @@ grpc-logger = "0.1.0"
 
 ## Example Configuration
 ```yaml
-whoami: "DB Webservice"
+server_id: "DB Webservice"
 output: grpc # console, file
 level: info
 grpc:

@@ -2,12 +2,10 @@ syntax = "proto3";
 package logging;
 
 service LogService {
-  // Change to server streaming
   rpc SubscribeToLogs (SubscribeRequest) returns (stream LogMessage) {}
 }
 
 message SubscribeRequest {
-  // Add any subscription parameters you might want
   string client_id = 1;
 }
 
@@ -19,5 +17,6 @@ message LogMessage {
   optional string thread_id = 5;
   optional string file = 6;
   optional string line = 7;
-  optional string whoami = 8;
+  optional string server_id = 8;
+  optional string target_client_id = 9;
 }

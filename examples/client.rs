@@ -1,3 +1,4 @@
+use grpc_logger::config::ClientRetryConfig;
 use grpc_logger::{config::load_config, LogConfig};
 use std::time::Duration;
 use tokio::time::sleep;
@@ -7,13 +8,20 @@ use tracing_subscriber::{fmt, EnvFilter};
 pub mod logging {
     tonic::include_proto!("logging");
 }
+use clap::Parser;
 use logging::log_service_client::LogServiceClient;
 use logging::SubscribeRequest;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    #[arg(long, default_value = "default-client")]
+    client_id: String,
+}
 
 async fn connect_with_retry(
     config: &LogConfig,
 ) -> Result<LogServiceClient<tonic::transport::Channel>, tonic::transport::Error> {
-    let mut retry_count = 0;
     let retry_config = &config.client_retry;
     let base_delay = Duration::from_secs(retry_config.base_delay_secs);
     let server_addr = format!(
@@ -21,8 +29,11 @@ async fn connect_with_retry(
         config.grpc.as_ref().unwrap().address,
         config.grpc.as_ref().unwrap().port
     );
+
+    let mut retry_count = 0;
     loop {
-        debug!("Attempting to connect to {}", server_addr);
+        let config = load_config("examples/client.yaml")?;
+        info!("Starting log client with ID: {}", args.client_id);
         match LogServiceClient::connect(server_addr.clone()).await {
             Ok(client) => {
                 info!("Successfully connected to log server at {}", server_addr);
@@ -50,7 +61,8 @@ async fn connect_with_retry(
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let args = Args::parse();
     // Setup logging for the client
     fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))

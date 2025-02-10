@@ -1,12 +1,9 @@
 use crate::config::{setup_logging, LogConfig, LogOutput};
 use futures::Stream;
 use futures::StreamExt;
-use std::pin::Pin;
-// use tokio::sync::broadcast;
 use std::collections::HashMap;
+use std::pin::Pin;
 use tokio::sync::mpsc;
-// use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
-// use tokio_stream::wrappers::BroadcastStream;
 use tonic::{Request, Response, Status};
 use tonic_web::GrpcWebLayer;
 use tracing::{info, trace, warn};
@@ -25,7 +22,11 @@ use tower_http::cors::{Any, CorsLayer};
 #[derive(Debug, Clone)]
 pub struct LoggingService {
     clients: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<LogMessage>>>>,
-    server_handle: Arc<Mutex<Option<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>>>,
+    server_handle: Arc<
+        Mutex<
+            Option<tokio::task::JoinHandle<Result<(), Box<dyn std::error::Error + Send + Sync>>>>,
+        >,
+    >,
     log_all_messages: Arc<Mutex<bool>>,
 }
 
@@ -40,12 +41,15 @@ impl LoggingService {
         Self {
             clients: Arc::new(Mutex::new(HashMap::new())),
             server_handle: Arc::new(Mutex::new(None)),
-            log_all_messages: Arc::new(Mutex::new(false)),  // Default to false
+            log_all_messages: Arc::new(Mutex::new(false)), // Default to false
         }
     }
 
     /// Initialize the entire logging service, including setting up logging and starting the server
-    pub async fn init(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn init(
+        &self,
+        config: &LogConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Set log_all_messages from config
         {
             let mut log_all = self.log_all_messages.lock().await;
@@ -85,7 +89,7 @@ impl LoggingService {
         // Start test log generation only if debug mode is enabled
         if config.debug_mode.enabled {
             let interval_secs = config.debug_mode.test_interval_secs.max(1); // Ensure at least 1 second
-            // let service_clone = self.clone();
+                                                                             // let service_clone = self.clone();
 
             tokio::spawn(async move {
                 let mut interval =
@@ -107,7 +111,10 @@ impl LoggingService {
     }
 
     /// Internal method to start the gRPC server
-    async fn start_server(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
+    async fn start_server(
+        &self,
+        config: &LogConfig,
+    ) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         let addr = match &config.grpc {
             Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
             None => "0.0.0.0:50052".to_string(),
@@ -159,16 +166,33 @@ impl LoggingService {
         Ok(())
     }
 
-     pub async fn broadcast_log(&self, log: LogMessage) {
+    pub async fn broadcast_log_filtered(&self, log: LogMessage, client_id: String) {
+        let clients = self.clients.lock().await;
+        if let Some(sender) = clients.get(&client_id) {
+            let _ = sender.send(log);
+        }
+    }
+
+    pub async fn broadcast_log(&self, log: LogMessage) {
         let clients = self.clients.lock().await;
         let log_all = self.log_all_messages.lock().await;
         let mut dead_clients = Vec::new();
 
         for (client_id, sender) in clients.iter() {
-            // Only send if we're logging all messages or if it's a non-internal message
-            if *log_all || !is_internal_message(&log) {
-                if let Err(_) = sender.send(log.clone()) {
-                    dead_clients.push(client_id.clone());
+            // Check if message is targeted
+            if let Some(target_id) = &log.target_client_id {
+                // Only send if this is the target client
+                if target_id == client_id {
+                    if let Err(_) = sender.send(log.clone()) {
+                        dead_clients.push(client_id.clone());
+                    }
+                }
+            } else {
+                // Broadcast to all if no target specified
+                if *log_all || !is_internal_message(&log) {
+                    if let Err(_) = sender.send(log.clone()) {
+                        dead_clients.push(client_id.clone());
+                    }
                 }
             }
         }
@@ -182,6 +206,19 @@ impl LoggingService {
                 warn!("Removed disconnected client: {}", client_id);
             }
         }
+    }
+
+    pub async fn check_connection(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // Try to acquire the lock on clients - if we can't, server might be down
+        if let Ok(clients) = self.clients.try_lock() {
+            // Check if we have any active clients
+            if !clients.is_empty() {
+                return Ok(());
+            }
+        }
+
+        // If we got here, either lock failed or no clients - consider connection dead
+        Err("Connection lost to logging server".into())
     }
 }
 
@@ -221,14 +258,15 @@ impl LogService for LoggingService {
 
         // Add test message right after connection
         let test_message = LogMessage {
-            whoami: None, // Some("grpc-logger".to_string()),
+            target_client_id: None,
+            server_id: None, // Some("grpc-logger".to_string()),
             timestamp: Some(chrono::Utc::now().to_rfc3339()),
             level: Some("INFO".to_string()),
             message: format!("Test message for client {}", client_id),
-            target: None, // Some("grpc_logger".to_string()),
+            target: None,    // Some("grpc_logger".to_string()),
             thread_id: None, // Some("main".to_string()),
-            file: None, //Some("server.rs".to_string()),
-            line: None, // Some("1".to_string()),
+            file: None,      //Some("server.rs".to_string()),
+            line: None,      // Some("1".to_string()),
         };
         let client_id_for_end = client_id.clone();
         let client_id_for_log = client_id.clone();
@@ -243,13 +281,15 @@ impl LogService for LoggingService {
                         if !target.starts_with("h2::")
                             && !target.starts_with("tonic::")
                             && !target.starts_with("tonic_web::")
-                            && target == "grpc_logger"
+                        //&& target == "grpc_logger"
                         {
-                            info!("📤 Sending log to client {}: {:?}", client_id_for_log, result);
+                            info!(
+                                "📤 Sending log to client {}: {:?}",
+                                client_id_for_log, result
+                            );
                         }
                     }
                     Ok(result)
-
 
                     // match &result {
                     //     Ok(log) => {
@@ -310,7 +350,9 @@ fn is_internal_message(log: &LogMessage) -> bool {
     ];
 
     if let Some(target) = &log.target {
-        INTERNAL_PREFIXES.iter().any(|prefix| target.starts_with(prefix))
+        INTERNAL_PREFIXES
+            .iter()
+            .any(|prefix| target.starts_with(prefix))
     } else {
         false
     }

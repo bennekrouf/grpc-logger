@@ -7,6 +7,7 @@ use tracing_subscriber::Layer;
 pub struct GrpcLayer {
     pub service: LoggingService,
     pub config: LogFieldsConfig,
+    pub server_id: Option<String>,
 }
 
 impl<S> Layer<S> for GrpcLayer
@@ -39,22 +40,25 @@ where
 
         struct LogVisitor {
             message: String,
-            whoami: String,
+            server_id: String,
+            client_id: Option<String>,
         }
 
         impl Visit for LogVisitor {
             fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
                 match field.name() {
                     "message" => self.message = format!("{:?}", value),
-                    "whoami" => self.whoami = format!("{:?}", value),
-                    _ => {},
+                    "server_id" => self.server_id = format!("{:?}", value),
+                    "client_id" => self.client_id = Some(format!("{:?}", value)),
+                    _ => {}
                 }
             }
         }
 
         let mut visitor = LogVisitor {
             message: String::new(),
-            whoami: String::new(),
+            server_id: String::new(),
+            client_id: None,
         };
         event.record(&mut visitor);
 
@@ -94,9 +98,10 @@ where
             } else {
                 None
             },
+            target_client_id: None,
             level: Some(event.metadata().level().to_string()),
             message: visitor.message,
-            whoami: Some(visitor.whoami),
+            server_id: self.server_id.clone(),
             target: if self.config.include_target {
                 Some(target.to_string())
             } else {
@@ -118,6 +123,24 @@ where
                 None
             },
         };
-        self.service.broadcast_log(log);
+
+        // Create a cloned service for the spawn
+        let service = self.service.clone();
+
+        // If there's a client_id in the span, create a filtered broadcast
+        if let Some(client_id) = visitor.client_id {
+            let log_clone = log.clone();
+            let client_id_clone = client_id.clone();
+            tokio::spawn(async move {
+                service
+                    .broadcast_log_filtered(log_clone, client_id_clone)
+                    .await;
+            });
+        } else {
+            let log_clone = log.clone();
+            tokio::spawn(async move {
+                service.broadcast_log(log_clone).await;
+            });
+        }
     }
 }

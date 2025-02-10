@@ -11,6 +11,7 @@ categories = ["development-tools::debugging"]
 
 [dependencies]
 chrono = "0.4.39"
+clap = "4.5.28"
 futures = "0.3.31"
 prost = "0.13.4"
 serde = { version = "1.0.217", features = ["derive"] }

@@ -46,7 +46,7 @@ pub struct DebugConfig {
 pub struct LogConfig {
     pub output: LogOutput,
     pub level: String,
-    pub whoami: Option<String>, // Add whoami field
+    pub server_id: Option<String>, // Add server_id field
     pub file_path: Option<String>,
     pub file_name: Option<String>,
     pub grpc: Option<GrpcConfig>,
@@ -63,16 +63,15 @@ pub struct LogConfig {
 }
 
 fn default_log_all_messages() -> bool {
-    false  // By default, don't log all messages
+    false // By default, don't log all messages
 }
-
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            output: LogOutput::Console,  // or whatever default you prefer
+            output: LogOutput::Console, // or whatever default you prefer
             level: "info".to_string(),
-            whoami: None,
+            server_id: None,
             file_path: None,
             file_name: None,
             grpc: None,
@@ -112,7 +111,7 @@ impl FormatTime for CustomTimer {
 // Custom format struct
 #[derive(Clone)]
 struct CustomFormatter {
-    whoami: Option<String>,
+    server_id: Option<String>,
     config: LogFieldsConfig,
 }
 
@@ -145,13 +144,18 @@ impl CustomFormatter {
         write!(writer, "{:>5} ", event.metadata().level())
     }
 
-    fn write_metadata(&self, writer: &mut Writer<'_>, event: &tracing::Event<'_>) -> std::fmt::Result {
-        if let Some(whoami) = &self.whoami {
-            write!(writer, "[{}] ", whoami)?;
+    fn write_metadata(
+        &self,
+        writer: &mut Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
+        if let Some(server_id) = &self.server_id {
+            write!(writer, "[{}] ", server_id)?;
         }
 
-        if self.config.include_target 
-            && event.metadata().target() != "tokio_util::codec::framed_impl" {
+        if self.config.include_target
+            && event.metadata().target() != "tokio_util::codec::framed_impl"
+        {
             write!(writer, "{} - ", event.metadata().target())?;
         }
 
@@ -159,7 +163,11 @@ impl CustomFormatter {
         self.write_location_info(writer, event)
     }
 
-    fn write_location_info(&self, writer: &mut Writer<'_>, event: &tracing::Event<'_>) -> std::fmt::Result {
+    fn write_location_info(
+        &self,
+        writer: &mut Writer<'_>,
+        event: &tracing::Event<'_>,
+    ) -> std::fmt::Result {
         if self.config.include_file {
             if let Some(file) = event.metadata().file() {
                 write!(writer, "{}:", file)?;
@@ -184,7 +192,10 @@ pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error + 
 pub fn setup_logging(
     config: &LogConfig,
     grpc_service: Option<LoggingService>,
-) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>, Box<dyn std::error::Error + Sync + Send>> {
+) -> Result<
+    Option<tracing_appender::non_blocking::WorkerGuard>,
+    Box<dyn std::error::Error + Sync + Send>,
+> {
     let level = match config.level.to_lowercase().as_str() {
         "trace" => Level::TRACE,
         "debug" => Level::DEBUG,
@@ -200,7 +211,7 @@ pub fn setup_logging(
 
     let subscriber = Registry::default();
     let format = CustomFormatter {
-        whoami: config.whoami.clone(),
+        server_id: config.server_id.clone(),
         config: config.log_fields.clone(),
     };
 
@@ -221,6 +232,7 @@ pub fn setup_logging(
                 |service| GrpcLayer {
                     service,
                     config: config.log_fields.clone(),
+                    server_id: config.server_id.clone(),
                 },
             )))
             .expect("Failed to set subscriber");
@@ -243,6 +255,7 @@ pub fn setup_logging(
                 |service| GrpcLayer {
                     service,
                     config: config.log_fields.clone(),
+                    server_id: config.server_id.clone(),
                 },
             )))
             .expect("Failed to set subscriber");
