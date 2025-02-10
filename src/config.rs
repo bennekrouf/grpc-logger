@@ -175,7 +175,7 @@ impl CustomFormatter {
 }
 
 // Configuration and setup functions
-pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error>> {
+pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error + Send + Sync>> {
     let config_str = fs::read_to_string(path)?;
     let config: LogConfig = serde_yaml::from_str(&config_str)?;
     Ok(config)
@@ -184,7 +184,7 @@ pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error>> 
 pub fn setup_logging(
     config: &LogConfig,
     grpc_service: Option<LoggingService>,
-) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>, Box<dyn std::error::Error>> {
+) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>, Box<dyn std::error::Error + Sync + Send>> {
     let level = match config.level.to_lowercase().as_str() {
         "trace" => Level::TRACE,
         "debug" => Level::DEBUG,

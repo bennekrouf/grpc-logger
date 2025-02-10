@@ -7,7 +7,7 @@ pub use config::{load_config, setup_logging, LogConfig};
 pub use grpc::GrpcLayer;
 
 /// Initialize the logging service with a given configuration file
-pub async fn init(config_path: &str) -> Result<LoggingService, Box<dyn std::error::Error>> {
+pub async fn init(config_path: &str) -> Result<LoggingService, Box<dyn std::error::Error + Send + Sync>> {
     let config = load_config(config_path)?;
     let service = LoggingService::new();
 

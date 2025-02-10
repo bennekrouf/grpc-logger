@@ -45,7 +45,7 @@ impl LoggingService {
     }
 
     /// Initialize the entire logging service, including setting up logging and starting the server
-    pub async fn init(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn init(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         // Set log_all_messages from config
         {
             let mut log_all = self.log_all_messages.lock().await;
@@ -107,7 +107,7 @@ impl LoggingService {
     }
 
     /// Internal method to start the gRPC server
-    async fn start_server(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error>> {
+    async fn start_server(&self, config: &LogConfig) -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
         let addr = match &config.grpc {
             Some(grpc_config) => format!("{}:{}", grpc_config.address, grpc_config.port),
             None => "0.0.0.0:50052".to_string(),

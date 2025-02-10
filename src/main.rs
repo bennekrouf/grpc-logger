@@ -4,7 +4,7 @@ mod server_build;
 use grpc_logger::init;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn std::error::Error + Sync + Send>> {
     // Initialize service with config file
     let _service = init("config.yaml").await?;
 
