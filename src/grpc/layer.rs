@@ -21,12 +21,12 @@ where
     ) {
         // Define prefixes to filter in a single array
         const INTERNAL_PREFIXES: &[&str] = &[
-            "h2::",
-            "tonic::",
-            "hyper::",
-            "tower::",
-            "runtime::", // Add runtime prefix
-            "http::",    // Add http prefix
+            // "h2::",
+            // "tonic::",
+            // "hyper::",
+            // "tower::",
+            // "runtime::",
+            // "http::",
         ];
 
         // Check if target starts with any internal prefix
@@ -64,23 +64,23 @@ where
 
         // Define message patterns to filter
         const FILTERED_PATTERNS: &[&str] = &[
-            "Queue::",
-            "transition_after",
-            "notifying task",
-            "assigned capacity",
-            "assigning",
-            "schedule_send",
-            "handshake complete",     // Add handshake messages
-            "spawning background",    // Add background task messages
-            "checkout dropped",       // Add checkout messages
-            "connection established", // Add connection messages
-            "connection closed",      // Add connection closure messages
-            "dispatcher task",        // Add dispatcher messages
-            "poll_ready",             // Add poll messages
-            "connection error",       // Add connection error messages
-            "binding to",             // Add binding messages
-            "accept",                 // Add accept messages
-            "http1 connection",       // Add http1 specific messages
+            // "Queue::",
+            // "transition_after",
+            // "notifying task",
+            // "assigned capacity",
+            // "assigning",
+            // "schedule_send",
+            // "handshake complete",
+            // "spawning background",
+            // "checkout dropped",
+            // "connection established",
+            // "connection closed",
+            // "dispatcher task",
+            // "poll_ready",
+            // "connection error",
+            // "binding to",
+            // "accept",
+            // "http1 connection",
         ];
 
         // Skip if message is empty or contains any filtered pattern

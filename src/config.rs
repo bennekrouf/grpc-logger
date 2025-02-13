@@ -15,6 +15,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Layer;
 use tracing_subscriber::Registry;
+use crate::client::GrpcLoggerClient;
+use crate::client::GrpcClientLayer;
 
 // Configuration structs
 #[derive(Debug, Deserialize)]
@@ -262,4 +264,26 @@ pub fn setup_logging(
             Ok(None)
         }
     }
+}
+
+pub async fn setup_client_logging(
+    config: &LogConfig,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if let Some(grpc_config) = &config.grpc {
+        let addr = format!("http://{}:{}", grpc_config.address, grpc_config.port);
+
+        // Create the client in a blocking task since we're likely in a sync context
+        // let client = tokio::runtime::Runtime::new()?.block_on(async {
+            let client = GrpcLoggerClient::new(addr, config.server_id.clone()).await?;
+        // })?;
+
+        let layer = GrpcClientLayer::new(client);
+        
+        let subscriber = tracing_subscriber::registry()
+            .with(layer)
+            .with(tracing_subscriber::fmt::layer());
+
+        tracing::subscriber::set_global_default(subscriber)?;
+    }
+    Ok(())
 }

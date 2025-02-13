@@ -1,6 +1,10 @@
 # grpc-logger
 A Rust crate providing logging capabilities with configurable outputs (console, file) and real-time log streaming through gRPC.
 
+
+
+cargo run --bin grpc_server
+
 ## Features
 - Multiple Output Modes
   - Console logging (direct terminal output)

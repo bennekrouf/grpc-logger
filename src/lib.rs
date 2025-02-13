@@ -1,10 +1,11 @@
 pub mod config;
 pub mod grpc;
 pub mod server_build;
+pub mod client;
 
 pub use crate::server_build::LoggingService;
-pub use config::{load_config, setup_logging, LogConfig};
 pub use grpc::GrpcLayer;
+pub use config::{load_config, setup_logging, setup_client_logging, LogConfig};
 
 /// Initialize the logging service with a given configuration file
 pub async fn init(config_path: &str) -> Result<LoggingService, Box<dyn std::error::Error + Send + Sync>> {

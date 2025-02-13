@@ -1,6 +1,6 @@
 # server_id: "grpc-logger"
 output: grpc # console, file
-level: info
+level: trace
 grpc:
   address: "127.0.0.1"
   port: 50052
@@ -13,6 +13,6 @@ log_fields:
   include_line: false
   include_timestamp: false
 debug_mode:
-  enabled: true
+  enabled: false
   test_interval_secs: 10
-log_all_messages: false 
+log_all_messages: true 

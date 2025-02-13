@@ -1,6 +1,8 @@
 mod config;
 mod grpc;
 mod server_build;
+mod client;
+
 use grpc_logger::init;
 
 #[tokio::main]
