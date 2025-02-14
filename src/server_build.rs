@@ -231,50 +231,64 @@ impl LoggingService {
 #[tonic::async_trait]
 impl LogService for LoggingService {
     type SubscribeToLogsStream = Pin<Box<dyn Stream<Item = Result<LogMessage, Status>> + Send>>;
-
     async fn subscribe_to_logs(
         &self,
         request: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeToLogsStream>, Status> {
+        println!("→ Entering subscribe_to_logs");
+        info!("Starting new log subscription request");
+
         let metadata = request.metadata();
+        println!("  Metadata received: {:?}", metadata);
+
         let request_inner = request.into_inner();
         let client_id = request_inner.client_id;
+        println!("  Extracted client_id: {}", client_id);
+
         let client_type = ClientType::from_i32(request_inner.client_type)
             .unwrap_or(ClientType::Unknown);
+        println!("  Client type resolved to: {:?}", client_type);
 
         // Log different messages based on client type
         match client_type {
             ClientType::Server => {
                 let server_name = request_inner.server_name;
+                println!("  Processing Server client type");
                 info!(
                     "🔧 Server instance connected: {} (name: {})",
                     client_id, server_name
                 );
             }
             ClientType::WebClient => {
+                println!("  Processing WebClient client type");
                 info!("🌐 Web client connected: {}", client_id);
             }
             ClientType::Unknown => {
+                println!("  Processing Unknown client type");
                 warn!("⚠️ Unknown client type connected: {}", client_id);
             }
         }
 
-
         // Create a channel for this specific client
         let (tx, rx) = mpsc::unbounded_channel();
+        println!("  Channel created for client");
 
         // Store the sender in our clients map
         {
+            println!("  Attempting to acquire clients lock");
             let mut clients = self.clients.lock().await;
+            println!("  Lock acquired, inserting client");
             clients.insert(client_id.clone(), tx);
+            info!("Added new client {} to clients map", client_id);
         }
 
         // Convert receiver into a stream
         let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
-
+        println!("  Stream created from receiver");
 
         // Only send test message to web clients
         if client_type == ClientType::WebClient {
+            println!("  Preparing test message for web client");
             let test_message = LogMessage {
                 target_client_id: None,
                 server_id: None,
@@ -286,20 +300,24 @@ impl LogService for LoggingService {
                 file: None,
                 line: None,
             };
+            println!("  Broadcasting test message");
             self.broadcast_log(test_message).await;
+            info!("Sent test message to web client {}", client_id);
         }
+
         let client_id_for_end = client_id.clone();
         let client_id_for_log = client_id.clone();
+        println!("  Setting up mapped stream");
 
         let mapped_stream = Box::pin(
             stream
                 .map(move |result| {
+                    println!("  Processing stream message for client {}", client_id_for_log);
                     // Log when sending a message
                     if let Some(target) = &result.target {
                         if !target.starts_with("h2::")
                             && !target.starts_with("tonic::")
                             && !target.starts_with("tonic_web::")
-                        //&& target == "grpc_logger"
                         {
                             info!(
                                 "📤 Sending log to client {}: {:?}",
@@ -308,14 +326,15 @@ impl LogService for LoggingService {
                         }
                     }
                     Ok(result)
-
                 })
                 .chain(futures::stream::once(async move {
+                    println!("  Stream ending for client {}", client_id_for_end);
                     info!("🏁 Stream ending for client {}", client_id_for_end);
                     Err(Status::ok("Stream complete"))
                 })),
         );
 
+        println!("← Exiting subscribe_to_logs");
         info!("✅ Stream setup complete for client: {}", client_id);
         Ok(Response::new(mapped_stream))
     }

@@ -20,43 +20,87 @@ use uuid::Uuid;
 use crate::server_build::logging::ClientType;
 use crate::server_build::logging::SubscribeRequest;
 
+pub async fn setup_logging(config: &LogConfig) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let level = match config.level.to_lowercase().as_str() {
+        "trace" => Level::TRACE,
+        "debug" => Level::DEBUG,
+        "info" => Level::INFO,
+        "warn" => Level::WARN,
+        "error" => Level::ERROR,
+        _ => Level::INFO,
+    };
 
-pub async fn setup_logging(
-    config: &LogConfig,
-    // _grpc_service: Option<LoggingService>,
-) -> Result<Option<tracing_appender::non_blocking::WorkerGuard>, Box<dyn std::error::Error + Send + Sync>> {
-    // If we have GRPC configuration, connect to the GRPC logger first
+    // Create a new LoggingService for forwarding logs
+    let logging_service = LoggingService::new();
+
+    let subscriber = Registry::default();
+    let fmt_layer = layer()
+        .with_writer(io::stdout)
+        .with_timer(CustomTimer)
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_file(false)
+        .with_line_number(false)
+        .with_ansi(false)
+        .with_level(true)
+        .with_thread_names(false)
+        .with_filter(EnvFilter::new("")
+            .add_directive("logger_to_client=info".parse()?)
+            .add_directive("warn".parse()?)
+            .add_directive(level.into()));
+
+    // Connect to gRPC logger if configured
     if let Some(grpc_config) = &config.grpc {
         let addr = format!("http://{}:{}", grpc_config.address, grpc_config.port);
         println!("Attempting to connect to grpc-logger at {}", addr);
         
-        // Create the subscribe request with server type
-        let server_id = config.server_id.clone().unwrap_or_else(|| format!("server-{}", Uuid::new_v4()));
+        let server_id = config.server_id.clone()
+            .unwrap_or_else(|| format!("server-{}", Uuid::new_v4()));
         println!("Creating subscription request for server: {}", server_id);
         
         let request = Request::new(SubscribeRequest {
             client_id: server_id.clone(),
             client_type: ClientType::Server as i32,
-            server_name: server_id,
+            server_name: server_id.clone(),
         });
 
         // Connect to gRPC server
-        println!("Connecting to gRPC server...");
         let mut client = LogServiceClient::connect(addr).await?;
-        println!("Connected successfully!");
+        println!("Connected to gRPC server");
         
-        // Subscribe to logs
-        println!("Subscribing to logs...");
-        let _response = client.subscribe_to_logs(request).await?;
-        println!("Subscribed successfully!");
+        // Start the subscription in a separate task
+        let response = client.subscribe_to_logs(request).await?;
+        let mut stream = response.into_inner();
+        
+        // Spawn a task to handle the stream
+        tokio::spawn(async move {
+            while let Ok(Some(log)) = stream.message().await {
+                println!("Received log from server: {:?}", log);
+            }
+            println!("Stream ended");
+        });
+
+        println!("Successfully subscribed to grpc-logger");
+
+        // Create the GRPC layer
+        let grpc_layer = GrpcLayer {
+            service: logging_service,
+            config: config.log_fields.clone(),
+            server_id: Some(server_id),
+        };
+
+        // Set up the subscriber with both layers
+        tracing::subscriber::set_global_default(subscriber.with(fmt_layer).with(grpc_layer))
+            .expect("Failed to set subscriber");
+    } else {
+        // Just use the standard subscriber
+        tracing::subscriber::set_global_default(subscriber.with(fmt_layer))
+            .expect("Failed to set subscriber");
     }
 
-    // Create a new logging service for internal use
-    let log_service = LoggingService::new();
-
-    // Then proceed with regular logging setup
-    println!("Setting up internal logging...");
-    setup_logging_internal(config, Some(log_service)).await}
+    println!("Logging setup complete");
+    Ok(())
+}
 
 pub async fn setup_logging_internal(
     config: &LogConfig,
