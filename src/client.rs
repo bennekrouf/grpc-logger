@@ -1,63 +1,44 @@
-use tonic::transport::Channel;
 use crate::server_build::logging::log_service_client::LogServiceClient;
-use crate::server_build::logging::LogMessage;
-use tracing::Subscriber;
-use tracing_subscriber::Layer;
+use crate::server_build::logging::SubscribeRequest;
+use tonic::transport::Channel;
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
 
 pub struct GrpcLoggerClient {
-    client: Arc<tokio::sync::Mutex<LogServiceClient<Channel>>>,
-    server_id: Option<String>,
+    _client: Arc<tokio::sync::Mutex<LogServiceClient<Channel>>>,
 }
 
 impl GrpcLoggerClient {
-    pub async fn new(addr: String, server_id: Option<String>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn new(addr: String) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+        println!("GRPC Logger: Creating new client connection to {}", addr);
         let client = LogServiceClient::connect(addr).await?;
-        Ok(Self {
-            client: Arc::new(tokio::sync::Mutex::new(client)),
-            server_id,
-        })
-    }
 
-    pub async fn send_log(&self, message: LogMessage) {
-        // Implementation for sending logs
-    }
-}
-
-pub struct GrpcClientLayer {
-    client: Arc<GrpcLoggerClient>,
-}
-
-impl GrpcClientLayer {
-    pub fn new(client: GrpcLoggerClient) -> Self {
-        Self {
-            client: Arc::new(client),
-        }
-    }
-}
-
-impl<S> Layer<S> for GrpcClientLayer
-where
-    S: Subscriber,
-{
-    fn on_event(
-        &self,
-        event: &tracing::Event<'_>,
-        _ctx: tracing_subscriber::layer::Context<'_, S>,
-    ) {
-        let client = self.client.clone();
-        let message = LogMessage {
-            timestamp: Some(chrono::Local::now().to_rfc3339()),
-            level: Some(event.metadata().level().to_string()),
-            message: format!("{:?}", event),
-            server_id: self.client.server_id.clone(),
-            target: Some(event.metadata().target().to_string()),
-            // ... fill other fields as needed
-            ..Default::default()
-        };
-
+        // Keep the client active by subscribing but not processing messages
+        let mut client_clone = client.clone();
         tokio::spawn(async move {
-            client.send_log(message).await;
+            let request = tonic::Request::new(SubscribeRequest {
+                client_id: "logger".to_string(),
+            });
+
+            println!("GRPC Logger: Starting log subscription");
+            match client_clone.subscribe_to_logs(request).await {
+                Ok(response) => {
+                    println!("GRPC Logger: Successfully subscribed to logs");
+                    let mut stream = response.into_inner();
+                    // Just keep the connection alive by receiving messages
+                    while let Ok(Some(_)) = stream.message().await {
+                        sleep(Duration::from_secs(1)).await; // Prevent busy-loop
+                    }
+                }
+                Err(e) => {
+                    println!("GRPC Logger Error: Failed to establish log stream: {}", e);
+                }
+            }
         });
+
+        println!("GRPC Logger: Client setup complete");
+        Ok(Self {
+            _client: Arc::new(tokio::sync::Mutex::new(client))
+        })
     }
 }

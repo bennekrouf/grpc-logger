@@ -1,12 +1,19 @@
 syntax = "proto3";
 package logging;
-
+// Define client types
+enum ClientType {
+  UNKNOWN = 0;
+  WEB_CLIENT = 1;
+  SERVER = 2;
+}
 service LogService {
   rpc SubscribeToLogs (SubscribeRequest) returns (stream LogMessage) {}
 }
 
 message SubscribeRequest {
   string client_id = 1;
+  ClientType client_type = 2;
+  string server_name = 3;
 }
 
 message LogMessage {

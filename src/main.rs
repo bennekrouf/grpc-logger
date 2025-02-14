@@ -1,7 +1,7 @@
 mod config;
 mod grpc;
 mod server_build;
-mod client;
+mod setup_logging;
 
 use grpc_logger::init;
 

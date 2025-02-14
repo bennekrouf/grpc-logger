@@ -1,22 +1,9 @@
 use crate::grpc::GrpcConfig;
-use crate::grpc::GrpcLayer;
-use crate::server_build::LoggingService;
 use serde::Deserialize;
 use std::fs;
-use std::io;
-use tracing::Level;
-use tracing_appender::non_blocking::NonBlocking;
-use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::fmt;
 use tracing_subscriber::fmt::format::Writer;
-use tracing_subscriber::fmt::layer;
 use tracing_subscriber::fmt::time::FormatTime;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::Layer;
-use tracing_subscriber::Registry;
-use crate::client::GrpcLoggerClient;
-use crate::client::GrpcClientLayer;
 
 // Configuration structs
 #[derive(Debug, Deserialize)]
@@ -102,7 +89,7 @@ pub struct ClientRetryConfig {
 }
 
 // Timer formatting
-struct CustomTimer;
+pub struct CustomTimer;
 impl FormatTime for CustomTimer {
     fn format_time(&self, w: &mut Writer<'_>) -> std::fmt::Result {
         let time = chrono::Local::now();
@@ -112,9 +99,9 @@ impl FormatTime for CustomTimer {
 
 // Custom format struct
 #[derive(Clone)]
-struct CustomFormatter {
-    server_id: Option<String>,
-    config: LogFieldsConfig,
+pub struct CustomFormatter {
+    pub server_id: Option<String>,
+    pub config: LogFieldsConfig,
 }
 
 impl<S, N> fmt::FormatEvent<S, N> for CustomFormatter
@@ -191,99 +178,4 @@ pub fn load_config(path: &str) -> Result<LogConfig, Box<dyn std::error::Error + 
     Ok(config)
 }
 
-pub fn setup_logging(
-    config: &LogConfig,
-    grpc_service: Option<LoggingService>,
-) -> Result<
-    Option<tracing_appender::non_blocking::WorkerGuard>,
-    Box<dyn std::error::Error + Sync + Send>,
-> {
-    let level = match config.level.to_lowercase().as_str() {
-        "trace" => Level::TRACE,
-        "debug" => Level::DEBUG,
-        "info" => Level::INFO,
-        "warn" => Level::WARN,
-        "error" => Level::ERROR,
-        _ => Level::INFO,
-    };
 
-    let env_filter = EnvFilter::new("")
-        .add_directive("logger_to_client=info".parse()?)
-        .add_directive("warn".parse()?);
-
-    let subscriber = Registry::default();
-    let format = CustomFormatter {
-        server_id: config.server_id.clone(),
-        config: config.log_fields.clone(),
-    };
-
-    match config.output {
-        LogOutput::File => {
-            let file_path = config.file_path.as_deref().unwrap_or("logs");
-            let file_name = config.file_name.as_deref().unwrap_or("app.log");
-
-            let file_appender = RollingFileAppender::new(Rotation::NEVER, file_path, file_name);
-            let (non_blocking, guard) = NonBlocking::new(file_appender);
-
-            let layer = layer()
-                .event_format(format)
-                .with_writer(non_blocking)
-                .with_filter(env_filter.add_directive(level.into()));
-
-            tracing::subscriber::set_global_default(subscriber.with(layer).with(grpc_service.map(
-                |service| GrpcLayer {
-                    service,
-                    config: config.log_fields.clone(),
-                    server_id: config.server_id.clone(),
-                },
-            )))
-            .expect("Failed to set subscriber");
-            Ok(Some(guard))
-        }
-        LogOutput::Console | LogOutput::Grpc => {
-            let layer = layer()
-                .with_writer(io::stdout)
-                .with_timer(CustomTimer)
-                .with_target(false)
-                .with_thread_ids(false)
-                .with_file(false)
-                .with_line_number(false)
-                .with_ansi(false)
-                .with_level(true)
-                .with_thread_names(false)
-                .with_filter(EnvFilter::from_default_env().add_directive(level.into()));
-
-            tracing::subscriber::set_global_default(subscriber.with(layer).with(grpc_service.map(
-                |service| GrpcLayer {
-                    service,
-                    config: config.log_fields.clone(),
-                    server_id: config.server_id.clone(),
-                },
-            )))
-            .expect("Failed to set subscriber");
-            Ok(None)
-        }
-    }
-}
-
-pub async fn setup_client_logging(
-    config: &LogConfig,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if let Some(grpc_config) = &config.grpc {
-        let addr = format!("http://{}:{}", grpc_config.address, grpc_config.port);
-
-        // Create the client in a blocking task since we're likely in a sync context
-        // let client = tokio::runtime::Runtime::new()?.block_on(async {
-            let client = GrpcLoggerClient::new(addr, config.server_id.clone()).await?;
-        // })?;
-
-        let layer = GrpcClientLayer::new(client);
-        
-        let subscriber = tracing_subscriber::registry()
-            .with(layer)
-            .with(tracing_subscriber::fmt::layer());
-
-        tracing::subscriber::set_global_default(subscriber)?;
-    }
-    Ok(())
-}

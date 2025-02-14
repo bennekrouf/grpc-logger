@@ -1,4 +1,5 @@
-use crate::config::{setup_logging, LogConfig, LogOutput};
+use crate::config::{LogConfig, LogOutput};
+use crate::setup_logging::setup_logging;
 use futures::Stream;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -7,6 +8,8 @@ use tokio::sync::mpsc;
 use tonic::{Request, Response, Status};
 use tonic_web::GrpcWebLayer;
 use tracing::{info, trace, warn};
+
+use crate::server_build::logging::ClientType;
 pub mod logging {
     tonic::include_proto!("logging");
 }
@@ -56,8 +59,8 @@ impl LoggingService {
             *log_all = config.log_all_messages;
         }
         // Setup logging first
-        let service_clone = self.clone();
-        let _guard = setup_logging(config, Some(service_clone))?;
+        // let service_clone = self.clone();
+        let _guard = setup_logging(config);
 
         // Log initialization details
         info!("Logger initialized with output: {:?}", config.output);
@@ -176,6 +179,11 @@ impl LoggingService {
         let log_all = self.log_all_messages.lock().await;
         let mut dead_clients = Vec::new();
 
+        // Skip internal messages unless explicitly configured to log all
+        if !*log_all && is_internal_message(&log) {
+            return;
+        }
+
         for (client_id, sender) in clients.iter() {
             // Check if message is targeted
             if let Some(target_id) = &log.target_client_id {
@@ -228,16 +236,29 @@ impl LogService for LoggingService {
         &self,
         request: Request<SubscribeRequest>,
     ) -> Result<Response<Self::SubscribeToLogsStream>, Status> {
-        // Get metadata before consuming the request
         let metadata = request.metadata();
-        info!("📝 Request headers: {:?}", metadata);
+        let request_inner = request.into_inner();
+        let client_id = request_inner.client_id;
+        let client_type = ClientType::from_i32(request_inner.client_type)
+            .unwrap_or(ClientType::Unknown);
 
-        // let receiver = self.sender.subscribe();
-        // let stream = BroadcastStream::new(receiver);
+        // Log different messages based on client type
+        match client_type {
+            ClientType::Server => {
+                let server_name = request_inner.server_name;
+                info!(
+                    "🔧 Server instance connected: {} (name: {})",
+                    client_id, server_name
+                );
+            }
+            ClientType::WebClient => {
+                info!("🌐 Web client connected: {}", client_id);
+            }
+            ClientType::Unknown => {
+                warn!("⚠️ Unknown client type connected: {}", client_id);
+            }
+        }
 
-        // Now consume the request to get client_id
-        let client_id = request.into_inner().client_id;
-        info!("🔌 New client connected: {}", client_id);
 
         // Create a channel for this specific client
         let (tx, rx) = mpsc::unbounded_channel();
@@ -251,25 +272,24 @@ impl LogService for LoggingService {
         // Convert receiver into a stream
         let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(rx);
 
-        // let client_id_for_map = client_id.clone();
-        // let client_id_for_end = client_id.clone();
 
-        // Add test message right after connection
-        let test_message = LogMessage {
-            target_client_id: None,
-            server_id: None, // Some("grpc-logger".to_string()),
-            timestamp: Some(chrono::Utc::now().to_rfc3339()),
-            level: Some("INFO".to_string()),
-            message: format!("Test message for client {}", client_id),
-            target: None,    // Some("grpc_logger".to_string()),
-            thread_id: None, // Some("main".to_string()),
-            file: None,      //Some("server.rs".to_string()),
-            line: None,      // Some("1".to_string()),
-        };
+        // Only send test message to web clients
+        if client_type == ClientType::WebClient {
+            let test_message = LogMessage {
+                target_client_id: None,
+                server_id: None,
+                timestamp: Some(chrono::Utc::now().to_rfc3339()),
+                level: Some("INFO".to_string()),
+                message: format!("Test message for web client {}", client_id),
+                target: None,
+                thread_id: None,
+                file: None,
+                line: None,
+            };
+            self.broadcast_log(test_message).await;
+        }
         let client_id_for_end = client_id.clone();
         let client_id_for_log = client_id.clone();
-
-        self.broadcast_log(test_message).await;
 
         let mapped_stream = Box::pin(
             stream
@@ -289,27 +309,6 @@ impl LogService for LoggingService {
                     }
                     Ok(result)
 
-                    // match &result {
-                    //     Ok(log) => {
-                    //         // Use as_ref() to get a reference to the String inside Option
-                    //         if let Some(target) = log.target.as_ref() {
-                    //             if !target.starts_with("h2::")
-                    //                 && !target.starts_with("tonic::")
-                    //                 && !target.starts_with("tonic_web::")
-                    //                 && target == "grpc_logger"
-                    //             {
-                    //                 info!(
-                    //                     "📤 Sending log to client {}: {:?}",
-                    //                     client_id_for_map, log
-                    //                 );
-                    //             }
-                    //         }
-                    //     }
-                    //     Err(e) => {
-                    //         tracing::error!("❌ Error for client {}: {:?}", client_id_for_map, e)
-                    //     }
-                    // }
-                    // map_broadcast_result(result)
                 })
                 .chain(futures::stream::once(async move {
                     info!("🏁 Stream ending for client {}", client_id_for_end);
@@ -322,21 +321,6 @@ impl LogService for LoggingService {
     }
 }
 
-// fn map_broadcast_result(
-//     result: Result<LogMessage, BroadcastStreamRecvError>,
-// ) -> Result<LogMessage, Status> {
-//     match result {
-//         Ok(msg) => Ok(msg),
-//         Err(BroadcastStreamRecvError::Lagged(n)) => {
-//             tracing::error!("Client lagging behind by {} messages", n);
-//             Err(Status::resource_exhausted(format!(
-//                 "Client lagging behind by {} messages",
-//                 n
-//             )))
-//         }
-//     }
-// }
-
 fn is_internal_message(log: &LogMessage) -> bool {
     const INTERNAL_PREFIXES: &[&str] = &[
         "h2::",
@@ -345,13 +329,26 @@ fn is_internal_message(log: &LogMessage) -> bool {
         "tower::",
         "runtime::",
         "http::",
+        "Connection{peer=",  // Add this to catch the h2 connection messages
+    ];
+
+    const INTERNAL_PATTERNS: &[&str] = &[
+        "send frame=",
+        "transition_after",
+        "writing frame=",
+        "encoding RESET",
+        "flushing buffer",
+        "connection established",
+        "connection closed",
+        "send",
+        "poll",
     ];
 
     if let Some(target) = &log.target {
-        INTERNAL_PREFIXES
-            .iter()
-            .any(|prefix| target.starts_with(prefix))
-    } else {
-        false
+        if INTERNAL_PREFIXES.iter().any(|prefix| target.starts_with(prefix)) {
+            return true;
+        }
     }
+
+    INTERNAL_PATTERNS.iter().any(|pattern| log.message.contains(pattern))
 }
