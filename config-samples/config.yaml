@@ -1,0 +1,18 @@
+# server_id: "grpc-logger"
+output: grpc # console, file
+level: debug
+grpc:
+  address: "127.0.0.1"
+  port: 50052
+# file_path: "logs"
+# file_name: "app.log"
+log_fields:
+  include_thread_id: false
+  include_target: false
+  include_file: false
+  include_line: false
+  include_timestamp: false
+debug_mode:
+  enabled: false
+  test_interval_secs: 10
+log_all_messages: true 

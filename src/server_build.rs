@@ -288,28 +288,6 @@ impl LogService for LoggingService {
                         }
                     }
                     Ok(result)
-
-                    // match &result {
-                    //     Ok(log) => {
-                    //         // Use as_ref() to get a reference to the String inside Option
-                    //         if let Some(target) = log.target.as_ref() {
-                    //             if !target.starts_with("h2::")
-                    //                 && !target.starts_with("tonic::")
-                    //                 && !target.starts_with("tonic_web::")
-                    //                 && target == "grpc_logger"
-                    //             {
-                    //                 info!(
-                    //                     "📤 Sending log to client {}: {:?}",
-                    //                     client_id_for_map, log
-                    //                 );
-                    //             }
-                    //         }
-                    //     }
-                    //     Err(e) => {
-                    //         tracing::error!("❌ Error for client {}: {:?}", client_id_for_map, e)
-                    //     }
-                    // }
-                    // map_broadcast_result(result)
                 })
                 .chain(futures::stream::once(async move {
                     info!("🏁 Stream ending for client {}", client_id_for_end);
@@ -321,21 +299,6 @@ impl LogService for LoggingService {
         Ok(Response::new(mapped_stream))
     }
 }
-
-// fn map_broadcast_result(
-//     result: Result<LogMessage, BroadcastStreamRecvError>,
-// ) -> Result<LogMessage, Status> {
-//     match result {
-//         Ok(msg) => Ok(msg),
-//         Err(BroadcastStreamRecvError::Lagged(n)) => {
-//             tracing::error!("Client lagging behind by {} messages", n);
-//             Err(Status::resource_exhausted(format!(
-//                 "Client lagging behind by {} messages",
-//                 n
-//             )))
-//         }
-//     }
-// }
 
 fn is_internal_message(log: &LogMessage) -> bool {
     const INTERNAL_PREFIXES: &[&str] = &[
