@@ -37,7 +37,7 @@ path = "src/lib.rs"
 
 # Binary configuration
 [[bin]]
-name = "grpc_server"
+name = "grpc-logger"
 path = "src/main.rs"
 
 [[example]]
